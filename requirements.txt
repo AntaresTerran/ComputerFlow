@@ -1,0 +1,31 @@
+# ComputerFlow Dependencies
+
+# Core & Configuration
+pydantic>=2.0.0
+pyyaml>=6.0
+
+# Audio & Wake-Word
+sounddevice>=0.4.6
+numpy>=1.24.0
+scipy>=1.10.0
+openwakeword>=0.6.0
+pyaudio>=0.2.14
+
+# Screen & Vision
+mss>=9.0.1
+Pillow>=10.0.0
+
+# Actuator & OS Control
+pyautogui>=0.9.54
+pynput>=1.7.6
+
+# Settings Panel & System Tray
+fastapi>=0.110.0
+uvicorn>=0.28.0
+pystray>=0.19.5
+
+# Model Inference (HuggingFace / PyTorch)
+# Note: PyTorch with CUDA should be installed according to local GPU setup
+torch>=2.2.0
+transformers>=4.40.0
+accelerate>=0.28.0

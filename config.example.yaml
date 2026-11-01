@@ -1,0 +1,45 @@
+# ComputerFlow Configuration Template
+# Copy this file to config.yaml to customize your setup
+
+general:
+  name: "ComputerFlow"
+  debug: true
+  platform: "auto" # "auto", "windows", "linux", "darwin"
+
+trigger:
+  mode: "wake_word" # "wake_word", "push_to_talk", "both"
+  wake_word: "computer" # Supported by openWakeWord: "computer", "alexa", "hey_jarvis", etc.
+  wake_word_sensitivity: 0.5
+  push_to_talk_key: "caps_lock" # e.g. "caps_lock", "f13", "mouse_thumb"
+  mic_device_index: null # null selects default system microphone
+  sample_rate: 16000
+  vad_silence_duration_seconds: 1.2 # Stops recording after 1.2s of silence
+
+vision:
+  enabled: true
+  mode: "snapshot_on_demand" # "snapshot_on_demand" (recommended) or "disabled"
+  max_resolution: [1920, 1080] # Rescales screenshot if necessary for model input
+  monitor_index: 0 # 0 for all/primary, or specific monitor index
+  save_debug_snapshots: false
+
+model:
+  engine: "lfm_omni_2b" # Liquid Foundation Model 3 Omni 2B
+  backend: "auto" # "auto" (selects cuda > directml > cpu), "cuda", "cpu", "directml"
+  model_path: "LiquidAI/LFM-3-Omni-2B" # HuggingFace ID or local path
+  quantization: "int4" # "none", "int8", "int4"
+  temperature: 0.1
+  max_tokens: 512
+
+panel:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8088
+  theme: "dark"
+  start_minimized_to_tray: true
+
+actuator:
+  allow_mouse_clicks: true
+  allow_keyboard_typing: true
+  allow_app_launch: true
+  allow_shell_commands: false # Safety guardrail
+  safe_mode: true # Prompts before critical actions
