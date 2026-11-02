@@ -15,12 +15,12 @@ trigger:
   sample_rate: 16000
   ring_buffer_seconds: 2.0 # Keeps rolling audio buffer so commands without pause after "Computer" aren't clipped
   vad_silence_duration_seconds: 1.2 # Stops recording after 1.2s of silence
-  feedback_chime: true # Plays classic subtle Star-Trek-style chirp on trigger / action
+  feedback_chirp: true # Feedback-Chirp: subtle LCARS-style sounds on trigger / action success / error
 
 vision:
   enabled: true
   mode: "snapshot_on_demand" # "snapshot_on_demand" (recommended) or "disabled"
-  snapshot_timing: "on_speech_end" # "on_wake", "on_speech_end" (captures current mouse position accurately), or "both"
+  snapshot_timing: "both" # "both" (recommended: on_wake = screen context, on_speech_end = current cursor position), "on_wake", "on_speech_end"
   max_resolution: [1920, 1080] # Rescales screenshot if necessary for model input
   coordinate_space: "normalized_1000" # Model outputs 0..1000 relative coords; mapped back to DPI-aware monitor bounds
   monitor_mode: "active_cursor" # "active_cursor" (monitor where mouse/focus is), "primary", or specific index
@@ -32,7 +32,7 @@ vision:
 model:
   engine: "lfm_omni_2b" # Liquid Foundation Model 3 Omni 2B
   backend: "auto" # "auto" (selects cuda > directml > cpu), "cuda", "cpu", "directml"
-  model_path: "LiquidAI/LFM-3-Omni-2B" # HuggingFace ID or local path
+  model_path: "LiquidAI/LFM3-Omni-2B" # HuggingFace ID or local path
   quantization: "int4" # "none", "int8", "int4"
   temperature: 0.1
   max_tokens: 512
@@ -50,5 +50,5 @@ actuator:
   allow_mouse_clicks: true
   allow_keyboard_typing: true
   allow_app_launch: true
-  allow_shell_commands: false # Safety guardrail
+  # Note: Shell commands are intentionally NOT supported (no run_command action) for safety reasons.
   safe_mode: true # Prompts before critical/destructive actions

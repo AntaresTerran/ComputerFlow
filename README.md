@@ -17,9 +17,9 @@ Inspiriert von den **Liquid Foundation Models (LFM)** von Liquid AI nutzt Comput
 
 ### Kernidee & Alleinstellungsmerkmale
 1. **Kultiges Star-Trek Wake Word („Computer“) & Nahtloser Audio-Ringbuffer:**  
-   Aktivierung über das leichtgewichtige Wake-Word *„Computer“* (via `openWakeWord`) oder per Push-to-Talk (z. B. CapsLock / Maustaste). Ein permanenter **2-Sekunden-Audio-Ringbuffer** sorgt dafür, dass flüssig gesprochene Sätze ohne Pause (*„Computer, mach Musik leiser“*) keine Silbe verlieren. Optionales LCARS-Audio-Chirp-Feedback bestätigt den Trigger sofort.
+   Aktivierung über das leichtgewichtige Wake-Word *„Computer“* (via `openWakeWord`) oder per Push-to-Talk (z. B. CapsLock / Maustaste). Ein permanenter **2-Sekunden-Audio-Ringbuffer** sorgt dafür, dass flüssig gesprochene Sätze ohne Pause (*„Computer, mach Musik leiser“*) keine Silbe verlieren. Optionaler Feedback-Chirp (LCARS-Stil) bestätigt den Trigger sofort.
 2. **Snapshot-on-Demand Vision & Cursor-Kontext:**  
-   Kein ressourcenfressender 60-FPS-Videostream! Beim Auslösen des Sprachbefehls nimmt ComputerFlow in Millisekunden einen Screenshot des aktiven Bildschirms auf – inklusive der aktuellen Mauszeiger-Position (*„Computer, klicke hier drauf“*). LFM3-Omni analysiert Audio + Bild simultan.
+   Kein ressourcenfressender 60-FPS-Videostream! ComputerFlow nimmt standardmäßig zwei Screenshots des aktiven Bildschirms in Millisekunden auf (`snapshot_timing: "both"`): einen beim Wake-Word für den Bildschirmkontext und einen am Satzende für die aktuelle Mauszeiger-Position (*„Computer, klicke hier drauf“*). LFM3-Omni analysiert Audio + Bild simultan.
 3. **Präzises Multi-Monitor & High-DPI Grounding (Normalized `[0..1000]` + Set-of-Marks):**  
    Statt fehleranfälliger Roh-Pixel nutzt ComputerFlow normalisierte `[0..1000]`-Koordinaten, die DPI-aware exakt auf den jeweiligen Monitor zurückgerechnet werden. Optional zeichnet ein **Set-of-Marks (SoM)** Overlay nummerierte Badges auf UI-Elemente, um die Trefferquote eines 2B-Modells selbst bei winzigen Buttons drastisch zu erhöhen.
 4. **Action-Chaining & Native OS-Reflexe:**  
@@ -42,14 +42,15 @@ Inspiriert von den **Liquid Foundation Models (LFM)** von Liquid AI nutzt Comput
            - Alternativ: Push-to-Talk (z.B. CapsLock)
            - 2s Rolling Ring-Buffer verhindert abgeschnittene Wörter
            - VAD (Voice Activity Detection): Erkennt Satzende
-           - LCARS Audio-Chirp bestätigt Trigger
+           - Feedback-Chirp (LCARS-Stil) bestätigt Trigger
                             │
            ┌────────────────┴────────────────┐
            │                                 │
            ▼                                 ▼
    [ Audio-Segment ]             [ 2. Ebene: Snapshot-on-Demand ]
    Sprachaufnahme des             Ultraschneller Screenshot via `mss`
-   Befehls (WAV-Puffer)           + Mauszeiger-Kontext & optionales SoM-Overlay
+   Befehls (WAV-Puffer)           (beim Wake-Word + am Satzende)
+                                  + Mauszeiger-Kontext & optionales SoM-Overlay
            │                                 │
            └────────────────┬────────────────┘
                             │
@@ -78,17 +79,18 @@ Inspiriert von den **Liquid Foundation Models (LFM)** von Liquid AI nutzt Comput
 ComputerFlow verfügt über ein übersichtliches Panel (lokale Web-UI + System-Tray-Icon):
 
 * **Audio & Trigger:**
-  * Auswahl des Eingabegeräts, Ring-Buffer-Länge, Wake-Word Empfindlichkeit & LCARS-Feedback-Sounds.
+  * Auswahl des Eingabegeräts, Ring-Buffer-Länge, Wake-Word Empfindlichkeit & Feedback-Chirp (LCARS-Stil).
   * Push-to-Talk Tastenzuweisung.
 * **Vision & Grounding:**
   * Monitorauswahl (`active_cursor`, Hauptmonitor oder fester Index).
-  * Snapshot-Timing (`on_wake` vs. `on_speech_end` für Zeigegesten mit der Maus).
+  * Snapshot-Timing (`both` als Standard: Kontext beim Wake-Word + Cursor-Position am Satzende; alternativ nur `on_wake` oder `on_speech_end`).
   * Optionales Set-of-Marks (SoM) UI-Overlay für maximale Klick-Präzision.
 * **Modell & Hardware:**
   * Backend-Auswahl: CUDA (Nvidia), DirectML, CPU/NPU.
   * Quantisierungsstufe (z. B. 4-bit für Laptops, 8-bit / FP16 für dGPU).
 * **Sicherheit & Guardrails:**
-  * Bestätigungsdialoge für destruktive Aktionen (z. B. Schließen von ungespeicherten Dokumenten oder Ausführen von Shell-Befehlen).
+  * Bestätigungsdialoge für destruktive Aktionen (z. B. Schließen von ungespeicherten Dokumenten).
+  * Shell-Befehle werden aus Sicherheitsgründen bewusst nicht unterstützt.
 * **Live-Log & History:**
   * Historie der letzten Befehle, Snapshots (mit eingezeichnetem Klickpunkt) und ausgeführten Aktionen zur einfachen Fehlersuche.
 
@@ -102,7 +104,9 @@ ComputerFlow/
 ├── config.yaml                # Lokale Konfiguration (nicht in Git)
 ├── requirements.txt           # Python-Abhängigkeiten
 ├── README.md                  # Projektübersicht
+├── LICENSE                    # MIT-Lizenz (gilt für den Code, nicht für Modellgewichte)
 ├── AGENT_SPEC.md              # Detaillierte Spezifikation für KI-Entwicklungsagenten
+├── VERBESSERUNGEN.md          # Gesammelte Analyse, Verbesserungsvorschläge & Ideen
 │
 ├── computerflow/
 │   ├── __init__.py
@@ -116,7 +120,7 @@ ComputerFlow/
 │   │   ├── wake_word.py       # openWakeWord Listener ("Computer") via sounddevice
 │   │   ├── push_to_talk.py    # Tastatur-/Maus-Hook Trigger
 │   │   ├── recorder.py        # Rolling Ring-Buffer + VAD Sprachaufnahme
-│   │   └── feedback.py        # Akustisches Feedback (LCARS Chirp / Beep)
+│   │   └── feedback.py        # Feedback-Chirp (LCARS-Stil): Wake, Success, Error
 │   │
 │   ├── vision/                # Bildschirmerfassung & Grounding
 │   │   ├── screen_capture.py  # Snapshot-on-Demand, Cursor-Tracking & DPI-Mapping
@@ -181,3 +185,12 @@ python -m computerflow.main
 ## 🤝 Zusammenarbeit mit KI-Agenten
 
 Für Entwickler und KI-Assistenten: Bitte lies vor dem Start die **[AGENT_SPEC.md](AGENT_SPEC.md)**. Sie enthält präzise Implementierungsdetails, Schnittstellenverträge und Coding-Guidelines für das Projekt.
+
+Gesammelte Analyse, offene Punkte und Ideen zur Weiterentwicklung findest du in **[VERBESSERUNGEN.md](VERBESSERUNGEN.md)**.
+
+---
+
+## 📜 Lizenz
+
+* **Code:** [MIT-Lizenz](LICENSE)
+* **Modell:** Die Gewichte von **LFM3-Omni-2B** sind **nicht** Teil dieses Repos und unterliegen der eigenen Lizenz von Liquid AI (*LFM Open License*). Bitte die Bedingungen auf der [Hugging-Face-Modellseite](https://huggingface.co/LiquidAI/LFM3-Omni-2B) prüfen. Für die private, nicht-kommerzielle Nutzung ist sie in der Regel unproblematisch.

@@ -13,7 +13,7 @@ ComputerFlow ist ein **lokaler, multimodaler Desktop-Sprachassistent**, der durc
 2. **Nahtloser Audio-Ringbuffer:** Da Nutzer nach dem Wort *„Computer“* oft ohne Pause weitersprechen (*„Computer, wechsle auf Twitch“*), hält der Audio-Stream einen permanenten Ringbuffer (z. B. 2 Sekunden). Beim Trigger wird direkt im Puffer geschnitten, damit keine Silbe verloren geht.
 3. **Normalisierte Koordinaten (`[0..1000]`) & High-DPI Awareness:** Das Vision-Modell gibt niemals rohe Bildschirm-Pixel aus, sondern normalisierte Koordinaten (`x_norm`, `y_norm` im Bereich `0` bis `1000`). Der Actuator rechnet diese unter Berücksichtigung von Windows-DPI-Scaling und Multi-Monitor-Offsets (`left`, `top`, `width`, `height`) exakt auf physische OS-Koordinaten um.
 4. **Native OS-Reflexe vor blinden Mausklicks:** Wann immer eine Aktion über native OS-/Fenster-APIs (`pywinctl`, Media-Keys, Shortcuts) ausgeführt werden kann (z. B. Fenster fokussieren, Lautstärke ändern, Play/Pause), werden diese gegenüber fehleranfälligen Mausklicks bevorzugt.
-5. **Sicherheit geht vor (Safe Guardrails):** Destruktive Operationen (Dateien löschen, Shell-Befehle ausführen, ungespeicherte Fenster schließen) dürfen niemals blind ausgeführt werden.
+5. **Sicherheit geht vor (Safe Guardrails):** Destruktive Operationen (Dateien löschen, ungespeicherte Fenster schließen) dürfen niemals blind ausgeführt werden. Shell-Befehle werden bewusst **nicht** unterstützt – es gibt keine `run_command`-Action.
 6. **Schlankes Kern-System mit Control Panel:** Die Konfiguration erfolgt über ein Web-Panel (`http://127.0.0.1:8088`) oder `config.yaml`, nicht über Hardcoding im Python-Code.
 
 ---
@@ -26,7 +26,7 @@ ComputerFlow ist ein **lokaler, multimodaler Desktop-Sprachassistent**, der durc
 | **Wake Word** | `openWakeWord` + `onnxruntime` | Open-Source, < 1 % CPU-Last, vortrainiertes Modell für `"computer"` |
 | **Audio I/O & VAD** | `sounddevice`, `numpy`, `scipy` | Reine Wheel-Installation ohne `pyaudio` C++-Build-Probleme unter Windows |
 | **Screen Capture** | `mss`, `Pillow` | Ultraschnell (~5–10 ms pro Frame), plattformübergreifend, Multi-Monitor-fähig |
-| **Brain / Inferenz** | `transformers` / `accelerate` / `torch` (Liquid LFM3-Omni-2B) | Lokale Ausführung mit CUDA / DirectML / CPU Fallback |
+| **Brain / Inferenz** | `transformers>=5.20.2` / `accelerate` / `torch` (Liquid `LiquidAI/LFM3-Omni-2B`, `trust_remote_code=True`) | Lokale Ausführung mit CUDA / DirectML / CPU Fallback |
 | **Aktionen / OS** | `pyautogui`, `pynput`, `pywinctl`, `webbrowser` | Maus, Tastatur, native Fenster-Handles (`pywinctl`) & Media-Keys |
 | **Control Panel** | `fastapi`, `uvicorn`, `pystray` | Leichtgewichtiges System-Tray + lokales Web-Dashboard |
 | **Konfiguration** | `pydantic`, `pyyaml` | Typisierte und validierte Einstellungen |
@@ -40,14 +40,16 @@ ComputerFlow ist ein **lokaler, multimodaler Desktop-Sprachassistent**, der durc
 1. Trigger-Event:
    openWakeWord erkennt "Computer" im laufenden Ring-Buffer (oder PTT gedrückt)
         │
-        ├──> Akustisches Feedback: Kurzer LCARS-Chirp (< 50 ms)
+        ├──> Feedback-Chirp (LCARS-Stil, < 50 ms)
         │
         ├─────────────────────────────────────────┐
         ▼                                         ▼
-   Audio-Recorder übernimmt                  Screen-Capture schießt Snapshot
-   Nahtlos ab Ende des Wake-Words            (standardmäßig bei `on_speech_end`,
-   aus dem Ring-Buffer bis VAD               damit Zeigegesten der Maus wie
-   Stille meldet (z. B. 1.2s)                "klicke hier" aktuell sind)
+   Audio-Recorder übernimmt                  Screen-Capture schießt Snapshots
+   Nahtlos ab Ende des Wake-Words            (Standard `both`: Snapshot 1 beim
+   aus dem Ring-Buffer bis VAD               Wake-Word = Bildschirmkontext,
+   Stille meldet (z. B. 1.2s)                Snapshot 2 bei `on_speech_end` =
+                                             aktuelle Cursor-Position für
+                                             Zeigegesten wie "klicke hier")
         │                                         │
         └────────────────────┬────────────────────┘
                              │
@@ -56,7 +58,8 @@ ComputerFlow ist ein **lokaler, multimodaler Desktop-Sprachassistent**, der durc
    LFM3-Omni-2B empfängt:
    - System Prompt + JSON Schema + Aktuelle Cursor-Position (x_norm, y_norm)
    - Audio-Puffer (16kHz Mono WAV / PCM)
-   - Bild-Puffer (Reskaliertes RGB Image + optionales Set-of-Marks Overlay)
+   - Bild-Puffer (Reskaliertes RGB Image + optionales Set-of-Marks Overlay;
+     bei `snapshot_timing: "both"` beide Snapshots)
                              │
                              ▼
 3. Brain-Antwort (Strukturiertes JSON mit Action-Chaining):
@@ -97,7 +100,7 @@ ComputerFlow ist ein **lokaler, multimodaler Desktop-Sprachassistent**, der durc
   * Nutzt **einen gemeinsamen** `sounddevice.InputStream` (16 kHz, Mono, `int16`), der kontinuierlich in einen `collections.deque`-Ringbuffer schreibt.
   * Sobald `openWakeWord` für `"computer"` über `wake_word_sensitivity` ausschlägt (oder PTT gedrückt wird), wechselt die State-Machine auf `RECORDING`, behält den relevanten Pre-Roll aus dem Ringbuffer und nimmt auf, bis die Energie-/VAD-Erkennung für `vad_silence_duration_seconds` Stille meldet.
 * `feedback.py`:
-  * Synthetisiert per `numpy`/`scipy` latenzfreie, subtile Sci-Fi-Bestätigungstöne (Wake-Chirp, Action-Success, Error-Buzz) ohne externe Audio-Assets zwingend vorauszusetzen.
+  * Synthetisiert per `numpy`/`scipy` den latenzfreien, subtilen **Feedback-Chirp** im LCARS-Stil (Wake, Action-Success, Error) ohne externe Audio-Assets zwingend vorauszusetzen. Aktivierung über `trigger.feedback_chirp`.
 
 ### B. `computerflow/vision/`
 * `screen_capture.py`:
@@ -150,7 +153,7 @@ Wenn du als Agent dieses Projekt implementierst, halte dich an folgende Reihenfo
    * Implementiere `screen_capture.py` inkl. Windows High-DPI Fix, `active_cursor`-Monitorerkennung und `norm_to_screen()` Umrechnung (`0..1000` -> echte Monitor-Koordinaten).
    * Implementiere `som_overlay.py` für optionales visuelles Grounding.
 3. **Schritt 3: Audio-Ringbuffer, Trigger & Feedback (`computerflow/audio/`)**
-   * Implementiere `feedback.py` (synthetische LCARS-Chirp-Töne), `recorder.py` (Rolling Ring-Buffer + VAD), `wake_word.py` (`openWakeWord` über `sounddevice`) und `push_to_talk.py`.
+   * Implementiere `feedback.py` (synthetischer Feedback-Chirp im LCARS-Stil), `recorder.py` (Rolling Ring-Buffer + VAD), `wake_word.py` (`openWakeWord` über `sounddevice`) und `push_to_talk.py`.
 4. **Schritt 4: Action-Schema & Brain-Client (`computerflow/brain/`)**
    * Implementiere `actions_schema.py` (unterstützt Action-Chaining und `0..1000` Koordinaten), `prompt_templates.py` und `lfm_client.py` (mit echtem Model-Loader + intelligentem Mock-Fallback).
 5. **Schritt 5: Actuator & Native OS-Reflexe (`computerflow/actuator/`)**

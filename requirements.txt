@@ -27,6 +27,11 @@ pystray>=0.19.5
 
 # Model Inference (HuggingFace / PyTorch)
 # Note: PyTorch with CUDA should be installed according to local GPU setup
+# LFM3-Omni-2B requires transformers >= 5.20.2 (see HF model card, loaded with trust_remote_code=True)
 torch>=2.2.0
-transformers>=4.40.0
+torchvision
+torchcodec
+transformers>=5.20.2
 accelerate>=0.28.0
+librosa
+soundfile
