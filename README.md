@@ -16,14 +16,16 @@
 Inspiriert von den **Liquid Foundation Models (LFM)** von Liquid AI nutzt ComputerFlow das kompakte, hocheffiziente **LFM3-Omni-2B**-Modell, um Sprache und Bildschirminhalte gleichzeitig in Echtzeit auf dem eigenen Rechner zu verarbeiten – **100 % lokal, extrem latenzarm und vollkommen privat**.
 
 ### Kernidee & Alleinstellungsmerkmale
-1. **Kultiges Star-Trek Wake Word („Computer“):**  
-   Aktivierung wahlweise über das leichtgewichtige Wake-Word *„Computer“* (via `openWakeWord`) oder per Push-to-Talk (z. B. CapsLock / Maustaste).
-2. **Snapshot-on-Demand Vision:**  
-   Kein ressourcenfressender 60-FPS-Videostream! Beim Auslösen des Sprachbefehls nimmt ComputerFlow in Millisekunden einen Screenshot des aktiven Bildschirms auf. LFM3-Omni analysiert Audio + Bild simultan, versteht die UI-Elemente und steuert Programme ohne starre Selektoren.
-3. **Universell & Portabel (Desktop & Laptop):**  
-   Keine hardgecodeten Pfade. Läuft nahtlos auf Windows, Linux und macOS. Hardware-Auto-Detection nutzt CUDA auf Gaming-PCs und schaltet auf Laptops automatisch auf CPU/NPU/Quantisierung um.
-4. **Zentrales Control- & Settings-Panel:**  
-   Ein modernes Dashboard (Web/GUI) zur Konfiguration von Mikrofonen, Schwellenwerten, Hotkeys, Safe-Mode und Modellauslastung inklusive System-Tray-Minimierung.
+1. **Kultiges Star-Trek Wake Word („Computer“) & Nahtloser Audio-Ringbuffer:**  
+   Aktivierung über das leichtgewichtige Wake-Word *„Computer“* (via `openWakeWord`) oder per Push-to-Talk (z. B. CapsLock / Maustaste). Ein permanenter **2-Sekunden-Audio-Ringbuffer** sorgt dafür, dass flüssig gesprochene Sätze ohne Pause (*„Computer, mach Musik leiser“*) keine Silbe verlieren. Optionales LCARS-Audio-Chirp-Feedback bestätigt den Trigger sofort.
+2. **Snapshot-on-Demand Vision & Cursor-Kontext:**  
+   Kein ressourcenfressender 60-FPS-Videostream! Beim Auslösen des Sprachbefehls nimmt ComputerFlow in Millisekunden einen Screenshot des aktiven Bildschirms auf – inklusive der aktuellen Mauszeiger-Position (*„Computer, klicke hier drauf“*). LFM3-Omni analysiert Audio + Bild simultan.
+3. **Präzises Multi-Monitor & High-DPI Grounding (Normalized `[0..1000]` + Set-of-Marks):**  
+   Statt fehleranfälliger Roh-Pixel nutzt ComputerFlow normalisierte `[0..1000]`-Koordinaten, die DPI-aware exakt auf den jeweiligen Monitor zurückgerechnet werden. Optional zeichnet ein **Set-of-Marks (SoM)** Overlay nummerierte Badges auf UI-Elemente, um die Trefferquote eines 2B-Modells selbst bei winzigen Buttons drastisch zu erhöhen.
+4. **Action-Chaining & Native OS-Reflexe:**  
+   Das Modell kann mehrstufige Aktionsketten in einem Durchlauf ausgeben (z. B. *Suchfeld klicken -> Text tippen -> Enter drücken*) und bevorzugt für Systembefehle (Mediensteuerung, Lautstärke, Fensterfokus) schnelle, verlässliche OS-APIs (`pywinctl`, Media-Keys) vor reinen Mausklicks.
+5. **Universell, Portabel & Zentrales Control-Panel:**  
+   Läuft auf Windows, Linux und macOS. Hardware-Auto-Detection nutzt CUDA auf Gaming-PCs und schaltet auf Laptops automatisch auf CPU/NPU/Quantisierung um – gesteuert über ein modernes System-Tray- & Web-Dashboard.
 
 ---
 
@@ -35,30 +37,33 @@ Inspiriert von den **Liquid Foundation Models (LFM)** von Liquid AI nutzt Comput
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
-           [ 1. Ebene: Trigger / Wake-Word ]
+           [ 1. Ebene: Trigger & Ring-Buffer ]
            - openWakeWord: Erkennt "Computer" (< 1% CPU)
            - Alternativ: Push-to-Talk (z.B. CapsLock)
-           - VAD (Voice Activity Detection): Schneidet Befehl
+           - 2s Rolling Ring-Buffer verhindert abgeschnittene Wörter
+           - VAD (Voice Activity Detection): Erkennt Satzende
+           - LCARS Audio-Chirp bestätigt Trigger
                             │
            ┌────────────────┴────────────────┐
            │                                 │
            ▼                                 ▼
    [ Audio-Segment ]             [ 2. Ebene: Snapshot-on-Demand ]
    Sprachaufnahme des             Ultraschneller Screenshot via `mss`
-   Befehls (WAV-Puffer)           im Moment des Triggers
+   Befehls (WAV-Puffer)           + Mauszeiger-Kontext & optionales SoM-Overlay
            │                                 │
            └────────────────┬────────────────┘
                             │
                             ▼
            [ 3. Ebene: Brain / LFM3-Omni-2B ]
-           - Verarbeitet Audio + Screen Snapshot
-           - Erkennt Intent & visuelle Koordinaten
-           - Gibt strukturiertes JSON (Function Call) aus:
-             `{"action": "click", "x": 420, "y": 85, "reason": "Twitch Tab"}`
+           - Verarbeitet Audio + Screen Snapshot + Cursor-Position
+           - Gibt strukturiertes JSON mit Action-Chaining &
+             normalisierten [0..1000] Koordinaten aus:
+             `{"actions": [{"type": "click", "x_norm": 420, "y_norm": 85}]}`
                             │
                             ▼
            [ 4. Ebene: Actuator & Execution ]
-           - Cross-Platform OS-Steuerung (Maus, Tastatur, URLs)
+           - High-DPI & Multi-Monitor Koordinaten-Transformation
+           - Native OS-Reflexe (Window-Focus, Media-Keys, Hotkeys)
            - Safety Guardrails & Safe-Mode Check
                             │
                             ▼
@@ -70,22 +75,22 @@ Inspiriert von den **Liquid Foundation Models (LFM)** von Liquid AI nutzt Comput
 
 ## 🎛️ Settings- & Control-Panel
 
-ComputerFlow verfügt über ein übersichtliches Panel (lokale Web-UI oder schlankes Desktop-GUI), das sich ins System-Tray einnistet:
+ComputerFlow verfügt über ein übersichtliches Panel (lokale Web-UI + System-Tray-Icon):
 
 * **Audio & Trigger:**
-  * Auswahl des Eingabegeräts (Headset, USB-Mikrofon, Laptop-Mic).
-  * Wake-Word Empfindlichkeit & Test-Pegel.
+  * Auswahl des Eingabegeräts, Ring-Buffer-Länge, Wake-Word Empfindlichkeit & LCARS-Feedback-Sounds.
   * Push-to-Talk Tastenzuweisung.
-* **Vision & Screen:**
-  * Monitorauswahl (Hauptmonitor, Multimonitor oder dynamisch aktiver Fokus).
-  * Auflösungsskalierung & Bildkompression für schnellste Inferenz.
+* **Vision & Grounding:**
+  * Monitorauswahl (`active_cursor`, Hauptmonitor oder fester Index).
+  * Snapshot-Timing (`on_wake` vs. `on_speech_end` für Zeigegesten mit der Maus).
+  * Optionales Set-of-Marks (SoM) UI-Overlay für maximale Klick-Präzision.
 * **Modell & Hardware:**
   * Backend-Auswahl: CUDA (Nvidia), DirectML, CPU/NPU.
   * Quantisierungsstufe (z. B. 4-bit für Laptops, 8-bit / FP16 für dGPU).
 * **Sicherheit & Guardrails:**
   * Bestätigungsdialoge für destruktive Aktionen (z. B. Schließen von ungespeicherten Dokumenten oder Ausführen von Shell-Befehlen).
 * **Live-Log & History:**
-  * Historie der letzten Befehle, Snapshots und ausgeführten Aktionen zur einfachen Fehlersuche.
+  * Historie der letzten Befehle, Snapshots (mit eingezeichnetem Klickpunkt) und ausgeführten Aktionen zur einfachen Fehlersuche.
 
 ---
 
@@ -101,29 +106,31 @@ ComputerFlow/
 │
 ├── computerflow/
 │   ├── __init__.py
-│   ├── main.py                # Haupteinstiegspunkt & Orchestrator
+│   ├── main.py                # Haupteinstiegspunkt & Orchestrator (inkl. DPI-Awareness)
 │   │
 │   ├── core/                  # Kernlogik & Pipeline
-│   │   ├── config_manager.py  # Laden & Validieren von config.yaml
-│   │   ├── state.py           # Laufzeit-Zustand & Event-Bus
+│   │   ├── config_manager.py  # Laden & Validieren von config.yaml (Pydantic)
+│   │   └── state.py           # Laufzeit-Zustand & Event-Bus
 │   │
-│   ├── audio/                 # Audioaufnahme & Wake-Word
-│   │   ├── wake_word.py       # openWakeWord Listener ("Computer")
+│   ├── audio/                 # Audioaufnahme, Ring-Buffer & Wake-Word
+│   │   ├── wake_word.py       # openWakeWord Listener ("Computer") via sounddevice
 │   │   ├── push_to_talk.py    # Tastatur-/Maus-Hook Trigger
-│   │   └── recorder.py        # VAD & Sprachaufnahme
+│   │   ├── recorder.py        # Rolling Ring-Buffer + VAD Sprachaufnahme
+│   │   └── feedback.py        # Akustisches Feedback (LCARS Chirp / Beep)
 │   │
-│   ├── vision/                # Bildschirmerfassung
-│   │   └── screen_capture.py  # Snapshot-on-Demand via mss
+│   ├── vision/                # Bildschirmerfassung & Grounding
+│   │   ├── screen_capture.py  # Snapshot-on-Demand, Cursor-Tracking & DPI-Mapping
+│   │   └── som_overlay.py     # Optionales Set-of-Marks Overlay für UI-Elemente
 │   │
 │   ├── brain/                 # LFM3-Omni Schnittstelle
 │   │   ├── lfm_client.py      # Lokale Inferenz (LFM3-Omni-2B)
-│   │   ├── prompt_templates.py# System-Prompts & JSON-Schemas
-│   │   └── actions_schema.py  # Definition gültiger Tool-Calls
+│   │   ├── prompt_templates.py# System-Prompts & Cursor/Monitor-Kontext
+│   │   └── actions_schema.py  # Pydantic-Schema für Action-Chaining & Tool-Calls
 │   │
 │   ├── actuator/              # Ausführungsebene
-│   │   ├── executor.py        # Routing der Aktionen
-│   │   ├── os_actions.py      # App-Starts, Systemlautstärke, Shortcuts
-│   │   └── ui_actions.py      # Maus-Klicks, Tastatureingaben (pyautogui)
+│   │   ├── executor.py        # Routing & Sequenz-Ausführung (Action-Chaining)
+│   │   ├── os_actions.py      # Native Fenstersteuerung (pywinctl), Media-Keys, Apps
+│   │   └── ui_actions.py      # Norm-zu-Pixel Transformation, Maus & Tastatur
 │   │
 │   └── panel/                 # Settings & Control Panel
 │       ├── server.py          # FastAPI / WebSocket Backend
@@ -163,11 +170,11 @@ python -m computerflow.main
 ## 🗺️ Roadmap & Meilensteine
 
 - [x] **Phase 0:** Konzeption, Architektur & Repo-Setup
-- [ ] **Phase 1 (MVP Trigger & Audio):** Wake-Word („Computer“) + PTT + Audio-Pufferung
-- [ ] **Phase 2 (Vision & Brain):** Snapshot-on-Demand + Anbindung LFM3-Omni-2B Function Calling
-- [ ] **Phase 3 (Actuator):** Sichere Ausführung von UI- und OS-Aktionen
-- [ ] **Phase 4 (Control Panel):** System-Tray-App und Settings-Dashboard
-- [ ] **Phase 5 (Testing & Portabilität):** Hardware-Benchmarking auf Laptop & Desktop
+- [ ] **Phase 1 (MVP Trigger & Audio):** Wake-Word („Computer“), 2s Audio-Ringbuffer, VAD & Feedback-Chirp
+- [ ] **Phase 2 (Vision & Brain):** High-DPI Snapshot-on-Demand, Cursor-Kontext & LFM3-Omni-2B Action-Chaining
+- [ ] **Phase 3 (Actuator):** Norm-Koordinaten-Mapping, Native OS-Reflexe (`pywinctl`) & Safety Guardrails
+- [ ] **Phase 4 (Control Panel):** System-Tray-App und Settings-Dashboard mit Snapshot-Inspector
+- [ ] **Phase 5 (Testing & Portabilität):** Set-of-Marks (SoM) Feinschliff & Hardware-Benchmarking
 
 ---
 

@@ -32,6 +32,7 @@ ENV/
 
 # Environment and sensitive configs
 .env
+config.yaml
 *.local.yaml
 *.local.json
 

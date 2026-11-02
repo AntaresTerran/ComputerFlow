@@ -13,13 +13,20 @@ trigger:
   push_to_talk_key: "caps_lock" # e.g. "caps_lock", "f13", "mouse_thumb"
   mic_device_index: null # null selects default system microphone
   sample_rate: 16000
+  ring_buffer_seconds: 2.0 # Keeps rolling audio buffer so commands without pause after "Computer" aren't clipped
   vad_silence_duration_seconds: 1.2 # Stops recording after 1.2s of silence
+  feedback_chime: true # Plays classic subtle Star-Trek-style chirp on trigger / action
 
 vision:
   enabled: true
   mode: "snapshot_on_demand" # "snapshot_on_demand" (recommended) or "disabled"
+  snapshot_timing: "on_speech_end" # "on_wake", "on_speech_end" (captures current mouse position accurately), or "both"
   max_resolution: [1920, 1080] # Rescales screenshot if necessary for model input
-  monitor_index: 0 # 0 for all/primary, or specific monitor index
+  coordinate_space: "normalized_1000" # Model outputs 0..1000 relative coords; mapped back to DPI-aware monitor bounds
+  monitor_mode: "active_cursor" # "active_cursor" (monitor where mouse/focus is), "primary", or specific index
+  monitor_index: 1
+  include_cursor_context: true # Passes current cursor (x, y) and visual marker to the model ("click here")
+  som_overlay: false # Optional Set-of-Marks (numbered UI badges) for ultra-precise clicking on small elements
   save_debug_snapshots: false
 
 model:
@@ -38,8 +45,10 @@ panel:
   start_minimized_to_tray: true
 
 actuator:
+  prefer_native_os_actions: true # Prefer media keys, window focus APIs, and hotkeys over raw mouse clicks when possible
+  allow_action_chaining: true # Allow model to execute sequential actions (e.g. click + type_text + enter)
   allow_mouse_clicks: true
   allow_keyboard_typing: true
   allow_app_launch: true
   allow_shell_commands: false # Safety guardrail
-  safe_mode: true # Prompts before critical actions
+  safe_mode: true # Prompts before critical/destructive actions
