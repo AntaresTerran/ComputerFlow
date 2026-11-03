@@ -1,6 +1,6 @@
 # ComputerFlow – Implementierungsspezifikation
 
-Beschlussstand: 3. November 2026. Verbindliche Zielarchitektur; noch keine implementierte Anwendung. Reihenfolge und Releasekriterien: [ROADMAP.md](ROADMAP.md). Beschlussübersicht: [VERBESSERUNGEN.md](VERBESSERUNGEN.md).
+Beschlussstand: 3. November 2026. Verbindliche Zielarchitektur; noch keine implementierte Anwendung. Reihenfolge und Releasekriterien: [ROADMAP.md](ROADMAP.md). Beschlussübersicht: [PROJEKTENTSCHEIDUNGEN.md](PROJEKTENTSCHEIDUNGEN.md).
 
 ## 1. Leitlinien und Struktur
 

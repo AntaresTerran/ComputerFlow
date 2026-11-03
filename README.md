@@ -51,7 +51,7 @@ Spätere 0.x-Stände vertiefen Alltagstauglichkeit, Verteilung, Browser- und Bet
 ## Entwicklungsunterlagen und Einrichtung
 
 - [AGENT_SPEC.md](AGENT_SPEC.md): Verbindliche Architektur und Ausführungsverträge.
-- [VERBESSERUNGEN.md](VERBESSERUNGEN.md): Beschlüsse und Zuordnung der ursprünglichen Vorschläge.
+- [PROJEKTENTSCHEIDUNGEN.md](PROJEKTENTSCHEIDUNGEN.md): Beschlossene Projekteigenschaften, Funktionsumfang und spätere Ausbauten.
 - [config.example.yaml](config.example.yaml): Geplantes Konfigurationsschema, noch keine implementierte API.
 
 Ein ausführbarer Quickstart folgt mit 0.0.1. Paketstruktur, pyproject.toml, uv-Lockfile und CI werden mit der Implementierung erstellt. Die Requirements sind vorläufige Bibliothekskandidaten, keine getestete Installationskombination. Der optionale Transformers-Weg ist in requirements-transformers.txt getrennt.

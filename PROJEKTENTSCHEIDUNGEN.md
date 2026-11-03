@@ -1,4 +1,4 @@
-# ComputerFlow – Beschlüsse und ergänzende Ideen
+# ComputerFlow – Projektentscheidungen und Funktionsumfang
 
 Stand: **3. November 2026**. Die ursprüngliche Vorschlagsliste wurde gemeinsam durchgegangen. Die folgenden Punkte sind beschlossen; „geplant“ bedeutet nicht implementiert. Reihenfolge: [ROADMAP.md](ROADMAP.md). Verbindliche technische Verträge: [AGENT_SPEC.md](AGENT_SPEC.md).
 

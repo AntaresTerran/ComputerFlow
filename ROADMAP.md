@@ -9,7 +9,7 @@ Beschlossener Planungsstand: 3. November 2026. **Aktuell: Konzeptstand, noch kei
 - Implementierung und Tests laufen gemeinsam. Keine separate vorgeschaltete Modelltestphase. Fehlerkorrekturen können als 0.0.x-Patchstände erscheinen; die Tabelle beschreibt Zielmeilensteine, keinen Zwang zu einer Version je Änderung.
 - Push-to-Talk zuerst; Wake Word direkt danach. Größere Oberfläche und Zusatzfunktionen dürfen diesen Einstieg nicht verzögern.
 - Windows zuerst mit gemeinsamen Plattformverträgen. Firefox ist der erste Browser mit optionaler Erweiterung; Grundbedienung bleibt erweiterungsunabhängig.
-- Die Beschlüsse in AGENT_SPEC.md und VERBESSERUNGEN.md gelten über alle Etappen. Verschobene Funktionen bleiben im Zielumfang. Sicherheits- und Datenschutzregeln gelten ab ihrer ersten betroffenen Funktion.
+- Die Beschlüsse in AGENT_SPEC.md und PROJEKTENTSCHEIDUNGEN.md gelten über alle Etappen. Verschobene Funktionen bleiben im Zielumfang. Sicherheits- und Datenschutzregeln gelten ab ihrer ersten betroffenen Funktion.
 - Keine Kalendertermine und keine automatische Freigabe anhand einer Versionsnummer. Maßgeblich ist nachgewiesenes Verhalten; noch fehlende Fähigkeiten bleiben sichtbar.
 
 ## Frühe Entwicklungsstände
