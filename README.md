@@ -1,196 +1,63 @@
 # 🌊 ComputerFlow
 
-> **Intelligente, lokale Sprach- und Vision-Steuerung für den PC – angetrieben von Liquid AI (LFM3-Omni-2B).**  
-> *"Computer, wechsle auf den Twitch-Tab von Papaplatte."*
+Ein geplanter lokaler Sprach- und Bildschirmassistent für den Desktop.
 
-[![Status: Conception & Prototype](https://img.shields.io/badge/Status-Concept%20%26%20Prototype-blue.svg)](https://github.com/AntaresTerran/ComputerFlow)
-[![Wake Word](https://img.shields.io/badge/Wake%20Word-Computer-red.svg)](https://github.com/AntaresTerran/ComputerFlow)
-[![Architecture](https://img.shields.io/badge/Model-LFM3--Omni--2B-purple.svg)](https://liquid.ai)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+> „Computer, wechsle auf den Twitch-Tab von Papaplatte.“
 
----
+**Stand: Konzept beschlossen, Implementierung noch nicht begonnen.** Das Repository enthält Planung und Konfigurationsvorlage. Es gibt noch keinen ausführbaren Assistenten und keine veröffentlichte Anwendungsversion.
 
-## 💡 Über das Projekt
+## Ziel und Arbeitsweise
 
-**ComputerFlow** ist ein universeller, lokaler Desktop-Assistent im Star-Trek-Stil.  
-Inspiriert von den **Liquid Foundation Models (LFM)** von Liquid AI nutzt ComputerFlow das kompakte, hocheffiziente **LFM3-Omni-2B**-Modell, um Sprache und Bildschirminhalte gleichzeitig in Echtzeit auf dem eigenen Rechner zu verarbeiten – **100 % lokal, extrem latenzarm und vollkommen privat**.
+ComputerFlow soll Sprache, Fensterinformationen und bei Bedarf Bildschirmbilder zu ausführbaren Desktop-Aufträgen verbinden. Die Verarbeitung bleibt lokal. Windows wird zuerst umgesetzt; Linux und macOS bleiben Teil des Zielumfangs. Unterschiedliche Hardware wird über Plattformadapter, automatische Auswahl und Geräteprofile berücksichtigt.
 
-### Kernidee & Alleinstellungsmerkmale
-1. **Kultiges Star-Trek Wake Word („Computer“) & Nahtloser Audio-Ringbuffer:**  
-   Aktivierung über das leichtgewichtige Wake-Word *„Computer“* (via `openWakeWord`) oder per Push-to-Talk (z. B. CapsLock / Maustaste). Ein permanenter **2-Sekunden-Audio-Ringbuffer** sorgt dafür, dass flüssig gesprochene Sätze ohne Pause (*„Computer, mach Musik leiser“*) keine Silbe verlieren. Optionaler Feedback-Chirp (LCARS-Stil) bestätigt den Trigger sofort.
-2. **Snapshot-on-Demand Vision & Cursor-Kontext:**  
-   Kein ressourcenfressender 60-FPS-Videostream! ComputerFlow nimmt standardmäßig zwei Screenshots des aktiven Bildschirms in Millisekunden auf (`snapshot_timing: "both"`): einen beim Wake-Word für den Bildschirmkontext und einen am Satzende für die aktuelle Mauszeiger-Position (*„Computer, klicke hier drauf“*). LFM3-Omni analysiert Audio + Bild simultan.
-3. **Präzises Multi-Monitor & High-DPI Grounding (Normalized `[0..1000]` + Set-of-Marks):**  
-   Statt fehleranfälliger Roh-Pixel nutzt ComputerFlow normalisierte `[0..1000]`-Koordinaten, die DPI-aware exakt auf den jeweiligen Monitor zurückgerechnet werden. Optional zeichnet ein **Set-of-Marks (SoM)** Overlay nummerierte Badges auf UI-Elemente, um die Trefferquote eines 2B-Modells selbst bei winzigen Buttons drastisch zu erhöhen.
-4. **Action-Chaining & Native OS-Reflexe:**  
-   Das Modell kann mehrstufige Aktionsketten in einem Durchlauf ausgeben (z. B. *Suchfeld klicken -> Text tippen -> Enter drücken*) und bevorzugt für Systembefehle (Mediensteuerung, Lautstärke, Fensterfokus) schnelle, verlässliche OS-APIs (`pywinctl`, Media-Keys) vor reinen Mausklicks.
-5. **Universell, Portabel & Zentrales Control-Panel:**  
-   Läuft auf Windows, Linux und macOS. Hardware-Auto-Detection nutzt CUDA auf Gaming-PCs und schaltet auf Laptops automatisch auf CPU/NPU/Quantisierung um – gesteuert über ein modernes System-Tray- & Web-Dashboard.
+Wir beginnen mit Push-to-Talk und ergänzen das Wake Word unmittelbar danach. Tests begleiten die Umsetzung; eine separate vorgeschaltete Modelltestphase entfällt.
 
----
+## Beschlossener Funktionsumfang
 
-## 🏛️ System-Architektur
+- **Audio:** Rechte Strg-Taste halten als PTT-Standard, freie Belegung und Umschaltmodus optional. Austauschbares „Computer“-Wake-Word-Modell, Ringbuffer und anpassbare Sprachende-Erkennung. Persönliche Stimmerkennung optional und standardmäßig aus.
+- **Bedienung:** Direkte Schnittstellen → Accessibility → visuelle Erkennung. Mehrstufige Aufträge mit Zustands- und Erfolgskontrolle, Mehrmonitorbetrieb, unterschiedliche Skalierungen und Unicode-Texteingabe.
+- **Bildschirm:** Bilder selbstständig bei Bedarf nachholen, Fenster- und Zeigekontext berücksichtigen. SoM als bedarfsgesteuerte Erkennungshilfe und kurze, abschaltbare Zielvorschau vor visuellen Klicks.
+- **Browser:** Grundbedienung ohne Erweiterung. Erste optionale Erweiterung für **Firefox**, andere Browser später.
+- **Modell:** Zunächst LFM3-Omni-2B über einen lokalen llama.cpp-Server. Austauschbare Modell-/Backendadapter und streng geprüftes internes Aktionsformat. Automatische Hardware-/Quantisierungsauswahl, manuelle Kontrolle und sichtbarer CPU-Fallback.
+- **Sicherheit:** Alltagsaktionen direkt; konkrete Bestätigung vor Senden, Kaufen, Löschen, Verwerfen von Änderungen und sensiblen Einstellungsänderungen. Freigabe und Abbruch per Sprache und Panel. Not-Aus, Laufzeitgrenzen und kontrollierte Fehlerbehandlung. Shell-Zugriff bleibt auch über Aktionskombinationen ausgeschlossen.
+- **Datenschutz:** Audio/Bilder standardmäßig flüchtig. Sitzungsverlauf und begrenztes Kurzzeitgedächtnis. Dauerhafte Historie, Debug-Aufnahmen und gespeicherte Testfälle nur nach Zustimmung, begrenzt und löschbar. Aufnahme-Ausschlüsse.
+- **Rückmeldung:** Lokale Sprachausgabe standardmäßig knapp; still und gesprächig wählbar. Rückfragen bei Mehrdeutigkeit, unterbrechbare eigene Audioausgabe und optionale Lautstärkeabsenkung.
+- **Oberfläche:** Tray, geschütztes lokales Web-Panel, geführte Einrichtung, Geräteprofile und Übungsmodus.
+- **Aufträge:** Diktieren, Bildschirminhalte vorlesen/erklären, gezielte Mediensteuerung, genaue Lautstärke, Programm-Aliase, Makros/Szenen mit Import/Export.
+- **Erweiterbarkeit:** Aktivierbare Plugins und freiwillige Fehlerkorrekturen als lokale Regressionstestfälle. Community-Installation, automatisches Modelltraining und portable Ausgabe sind spätere Ausbauten.
 
-```
-┌────────────────────────────────────────────────────────┐
-│                   Mikrofon & Audio                    │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            ▼
-           [ 1. Ebene: Trigger & Ring-Buffer ]
-           - openWakeWord: Erkennt "Computer" (< 1% CPU)
-           - Alternativ: Push-to-Talk (z.B. CapsLock)
-           - 2s Rolling Ring-Buffer verhindert abgeschnittene Wörter
-           - VAD (Voice Activity Detection): Erkennt Satzende
-           - Feedback-Chirp (LCARS-Stil) bestätigt Trigger
-                            │
-           ┌────────────────┴────────────────┐
-           │                                 │
-           ▼                                 ▼
-   [ Audio-Segment ]             [ 2. Ebene: Snapshot-on-Demand ]
-   Sprachaufnahme des             Ultraschneller Screenshot via `mss`
-   Befehls (WAV-Puffer)           (beim Wake-Word + am Satzende)
-                                  + Mauszeiger-Kontext & optionales SoM-Overlay
-           │                                 │
-           └────────────────┬────────────────┘
-                            │
-                            ▼
-           [ 3. Ebene: Brain / LFM3-Omni-2B ]
-           - Verarbeitet Audio + Screen Snapshot + Cursor-Position
-           - Gibt strukturiertes JSON mit Action-Chaining &
-             normalisierten [0..1000] Koordinaten aus:
-             `{"actions": [{"type": "click", "x_norm": 420, "y_norm": 85}]}`
-                            │
-                            ▼
-           [ 4. Ebene: Actuator & Execution ]
-           - High-DPI & Multi-Monitor Koordinaten-Transformation
-           - Native OS-Reflexe (Window-Focus, Media-Keys, Hotkeys)
-           - Safety Guardrails & Safe-Mode Check
-                            │
-                            ▼
-           [ 5. Control Panel & System Tray ]
-           - Web/GUI Dashboard zur Konfiguration & Statusanzeige
-```
+## Geplanter Ablauf
 
----
+Sprache → Kontext beschaffen → Modelladapter → typisierte Aktion → Ziel-/Richtlinienprüfung → gegebenenfalls Bestätigung → Plattform/Integration → Ergebnis prüfen → fortsetzen, nachfragen oder abschließen.
 
-## 🎛️ Settings- & Control-Panel
+Bedarfsgesteuerte Verarbeitung darf keine stillschweigend fehlenden Funktionen erzeugen. ComputerFlow beschafft fehlenden Kontext oder fragt nach. Nicht verfügbare Fähigkeiten und fehlgeschlagene Schritte werden sichtbar gemeldet.
 
-ComputerFlow verfügt über ein übersichtliches Panel (lokale Web-UI + System-Tray-Icon):
+## Roadmap
 
-* **Audio & Trigger:**
-  * Auswahl des Eingabegeräts, Ring-Buffer-Länge, Wake-Word Empfindlichkeit & Feedback-Chirp (LCARS-Stil).
-  * Push-to-Talk Tastenzuweisung.
-* **Vision & Grounding:**
-  * Monitorauswahl (`active_cursor`, Hauptmonitor oder fester Index).
-  * Snapshot-Timing (`both` als Standard: Kontext beim Wake-Word + Cursor-Position am Satzende; alternativ nur `on_wake` oder `on_speech_end`).
-  * Optionales Set-of-Marks (SoM) UI-Overlay für maximale Klick-Präzision.
-* **Modell & Hardware:**
-  * Backend-Auswahl: CUDA (Nvidia), DirectML, CPU/NPU.
-  * Quantisierungsstufe (z. B. 4-bit für Laptops, 8-bit / FP16 für dGPU).
-* **Sicherheit & Guardrails:**
-  * Bestätigungsdialoge für destruktive Aktionen (z. B. Schließen von ungespeicherten Dokumenten).
-  * Shell-Befehle werden aus Sicherheitsgründen bewusst nicht unterstützt.
-* **Live-Log & History:**
-  * Historie der letzten Befehle, Snapshots (mit eingezeichnetem Klickpunkt) und ausgeführten Aktionen zur einfachen Fehlersuche.
+Die vollständige **[Roadmap](ROADMAP.md)** beginnt bei **0.0.1**. Sie beschreibt größere nutzbare Etappen auf einem langen Weg zu 1.0. Versionsnummern sind Planungsziele und noch keine Releases.
 
----
+| Zielversion | Ergebnis |
+|---|---|
+| 0.0.1 | Lokaler Windows-Durchstich mit Push-to-Talk und ersten Systemaktionen |
+| 0.0.2 | Wake Word „Computer“ und alltagstaugliche Audioaufnahme |
+| 0.0.3 | Geprüfte Desktop- und UI-Bedienung |
+| 0.0.4 | Optionale Firefox-Anbindung |
+| 0.0.5 | Panel, Einrichtung und Geräteprofile |
+| 0.0.6 | Diktieren, Bildschirmassistenz und Folgeaufträge |
+| 0.0.7 | Makros und erweiterbare Integrationen |
 
-## 📁 Geplante Projektstruktur
+Spätere 0.x-Stände vertiefen Alltagstauglichkeit, Verteilung, Browser- und Betriebssystemunterstützung. 1.0 erhält bewusst noch keinen Termin.
 
-```
-ComputerFlow/
-├── config.example.yaml        # Vorlage für Einstellungen
-├── config.yaml                # Lokale Konfiguration (nicht in Git)
-├── requirements.txt           # Python-Abhängigkeiten
-├── README.md                  # Projektübersicht
-├── LICENSE                    # MIT-Lizenz (gilt für den Code, nicht für Modellgewichte)
-├── AGENT_SPEC.md              # Detaillierte Spezifikation für KI-Entwicklungsagenten
-├── VERBESSERUNGEN.md          # Gesammelte Analyse, Verbesserungsvorschläge & Ideen
-│
-├── computerflow/
-│   ├── __init__.py
-│   ├── main.py                # Haupteinstiegspunkt & Orchestrator (inkl. DPI-Awareness)
-│   │
-│   ├── core/                  # Kernlogik & Pipeline
-│   │   ├── config_manager.py  # Laden & Validieren von config.yaml (Pydantic)
-│   │   └── state.py           # Laufzeit-Zustand & Event-Bus
-│   │
-│   ├── audio/                 # Audioaufnahme, Ring-Buffer & Wake-Word
-│   │   ├── wake_word.py       # openWakeWord Listener ("Computer") via sounddevice
-│   │   ├── push_to_talk.py    # Tastatur-/Maus-Hook Trigger
-│   │   ├── recorder.py        # Rolling Ring-Buffer + VAD Sprachaufnahme
-│   │   └── feedback.py        # Feedback-Chirp (LCARS-Stil): Wake, Success, Error
-│   │
-│   ├── vision/                # Bildschirmerfassung & Grounding
-│   │   ├── screen_capture.py  # Snapshot-on-Demand, Cursor-Tracking & DPI-Mapping
-│   │   └── som_overlay.py     # Optionales Set-of-Marks Overlay für UI-Elemente
-│   │
-│   ├── brain/                 # LFM3-Omni Schnittstelle
-│   │   ├── lfm_client.py      # Lokale Inferenz (LFM3-Omni-2B)
-│   │   ├── prompt_templates.py# System-Prompts & Cursor/Monitor-Kontext
-│   │   └── actions_schema.py  # Pydantic-Schema für Action-Chaining & Tool-Calls
-│   │
-│   ├── actuator/              # Ausführungsebene
-│   │   ├── executor.py        # Routing & Sequenz-Ausführung (Action-Chaining)
-│   │   ├── os_actions.py      # Native Fenstersteuerung (pywinctl), Media-Keys, Apps
-│   │   └── ui_actions.py      # Norm-zu-Pixel Transformation, Maus & Tastatur
-│   │
-│   └── panel/                 # Settings & Control Panel
-│       ├── server.py          # FastAPI / WebSocket Backend
-│       ├── tray.py            # System Tray Icon (pystray)
-│       └── web/               # Leichtes HTML5/CSS/JS Dashboard
-│
-└── tests/                     # Unit- & Integrationstests
-```
+## Entwicklungsunterlagen und Einrichtung
 
----
+- [AGENT_SPEC.md](AGENT_SPEC.md): Verbindliche Architektur und Ausführungsverträge.
+- [VERBESSERUNGEN.md](VERBESSERUNGEN.md): Beschlüsse und Zuordnung der ursprünglichen Vorschläge.
+- [config.example.yaml](config.example.yaml): Geplantes Konfigurationsschema, noch keine implementierte API.
 
-## 🚀 Erste Schritte (Quickstart)
+Ein ausführbarer Quickstart folgt mit 0.0.1. Paketstruktur, pyproject.toml, uv-Lockfile und CI werden mit der Implementierung erstellt. Die Requirements sind vorläufige Bibliothekskandidaten, keine getestete Installationskombination. Der optionale Transformers-Weg ist in requirements-transformers.txt getrennt.
 
-### Voraussetzungen
-* Python 3.10+
-* Git
-* Mikrofon
-* Optional: Nvidia GPU mit CUDA-Support (empfohlen für maximale Geschwindigkeit)
+Der spätere Setup-Assistent richtet Mikrofon, Trigger und lokale Inferenz ein, zeigt Downloads und akzeptiert vorhandene Modelle. Ein Windows-Installer ist eingeplant. Latenz, Speicherbedarf und Plattformkompatibilität sind noch nicht gemessen.
 
-### Installation
-```bash
-git clone https://github.com/AntaresTerran/ComputerFlow.git
-cd ComputerFlow
-python -m venv venv
-# Windows:
-.\venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
+## Lizenz
 
-pip install -r requirements.txt
-cp config.example.yaml config.yaml
-python -m computerflow.main
-```
-
----
-
-## 🗺️ Roadmap & Meilensteine
-
-- [x] **Phase 0:** Konzeption, Architektur & Repo-Setup
-- [ ] **Phase 1 (MVP Trigger & Audio):** Wake-Word („Computer“), 2s Audio-Ringbuffer, VAD & Feedback-Chirp
-- [ ] **Phase 2 (Vision & Brain):** High-DPI Snapshot-on-Demand, Cursor-Kontext & LFM3-Omni-2B Action-Chaining
-- [ ] **Phase 3 (Actuator):** Norm-Koordinaten-Mapping, Native OS-Reflexe (`pywinctl`) & Safety Guardrails
-- [ ] **Phase 4 (Control Panel):** System-Tray-App und Settings-Dashboard mit Snapshot-Inspector
-- [ ] **Phase 5 (Testing & Portabilität):** Set-of-Marks (SoM) Feinschliff & Hardware-Benchmarking
-
----
-
-## 🤝 Zusammenarbeit mit KI-Agenten
-
-Für Entwickler und KI-Assistenten: Bitte lies vor dem Start die **[AGENT_SPEC.md](AGENT_SPEC.md)**. Sie enthält präzise Implementierungsdetails, Schnittstellenverträge und Coding-Guidelines für das Projekt.
-
-Gesammelte Analyse, offene Punkte und Ideen zur Weiterentwicklung findest du in **[VERBESSERUNGEN.md](VERBESSERUNGEN.md)**.
-
----
-
-## 📜 Lizenz
-
-* **Code:** [MIT-Lizenz](LICENSE)
-* **Modell:** Die Gewichte von **LFM3-Omni-2B** sind **nicht** Teil dieses Repos und unterliegen der eigenen Lizenz von Liquid AI (*LFM Open License*). Bitte die Bedingungen auf der [Hugging-Face-Modellseite](https://huggingface.co/LiquidAI/LFM3-Omni-2B) prüfen. Für die private, nicht-kommerzielle Nutzung ist sie in der Regel unproblematisch.
+Code: [MIT](LICENSE). Modelle und Wake-Word-Gewichte haben eigene Lizenzen und werden mit Herkunft und Revision behandelt. Siehe die offiziellen Quellen für [LFM3-Omni-2B](https://huggingface.co/LiquidAI/LFM3-Omni-2B) und die geplante [GGUF-Variante](https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF).

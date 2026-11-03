@@ -40,6 +40,9 @@ config.yaml
 models/
 *.bin
 *.onnx
+# Reviewed distributable wake-word assets may be explicitly versioned here.
+# Add origin, revision/checksum and license beside each model.
+!assets/wake_words/*.onnx
 *.safetensors
 *.gguf
 *.pt

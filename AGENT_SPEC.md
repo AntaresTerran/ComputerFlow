@@ -1,162 +1,101 @@
-# 🤖 ComputerFlow – Agent Specification & Implementation Guide
+# ComputerFlow – Implementierungsspezifikation
 
-> **Zweck dieses Dokuments:** Dieses Dokument dient als verbindliche Spezifikation und Handbuch für KI-Entwicklungsagenten (z. B. Antigravity, Claude, ChatGPT), die an **ComputerFlow** arbeiten. Es definiert die Architektur, Schnittstellenverträge, Design-Entscheidungen und die konkreten Arbeitsschritte.
+Beschlussstand: 3. November 2026. Verbindliche Zielarchitektur; noch keine implementierte Anwendung. Reihenfolge und Releasekriterien: [ROADMAP.md](ROADMAP.md). Beschlussübersicht: [VERBESSERUNGEN.md](VERBESSERUNGEN.md).
 
----
+## 1. Leitlinien und Struktur
 
-## 🎯 1. Projekt-Vision & Leitprinzipien
+Windows zuerst; gemeinsame Plattformverträge für späteres Linux/macOS. Lokal, private Nutzung und Open Source, MIT für Code und getrennte Modelllizenzen. Keine hardcodierten Rechner/Pfade/Geräte. PTT zuerst, Wake Word unmittelbar danach. Tests begleiten die Umsetzung; keine separate vorgelagerte Modelltestphase. Jeder Meilenstein liefert einen nutzbaren Durchstich.
 
-ComputerFlow ist ein **lokaler, multimodaler Desktop-Sprachassistent**, der durch das Wake-Word **„Computer“** aktiviert wird und Sprachbefehle in Verbindung mit einem Live-Screenshot des Bildschirms analysiert.
+Geplante Paketbereiche: core (Konfiguration/Profile/Zustand), audio, vision, brain (Backend-/Modelladapter und Aktionsschema), actuator (Richtlinien/Ausführung/Prüfung), platform, integrations sowie panel (Server/Web/Tray/Setup). Tests liegen unter tests.
 
-### Die 6 goldenen Regeln
-1. **Kein Dauer-Video-Streaming:** Das System nimmt beim Auslösen eines Befehls gezielt **einen Snapshot** auf (*Snapshot-on-Demand*). Das schont CPU/GPU und minimiert die Latenz.
-2. **Nahtloser Audio-Ringbuffer:** Da Nutzer nach dem Wort *„Computer“* oft ohne Pause weitersprechen (*„Computer, wechsle auf Twitch“*), hält der Audio-Stream einen permanenten Ringbuffer (z. B. 2 Sekunden). Beim Trigger wird direkt im Puffer geschnitten, damit keine Silbe verloren geht.
-3. **Normalisierte Koordinaten (`[0..1000]`) & High-DPI Awareness:** Das Vision-Modell gibt niemals rohe Bildschirm-Pixel aus, sondern normalisierte Koordinaten (`x_norm`, `y_norm` im Bereich `0` bis `1000`). Der Actuator rechnet diese unter Berücksichtigung von Windows-DPI-Scaling und Multi-Monitor-Offsets (`left`, `top`, `width`, `height`) exakt auf physische OS-Koordinaten um.
-4. **Native OS-Reflexe vor blinden Mausklicks:** Wann immer eine Aktion über native OS-/Fenster-APIs (`pywinctl`, Media-Keys, Shortcuts) ausgeführt werden kann (z. B. Fenster fokussieren, Lautstärke ändern, Play/Pause), werden diese gegenüber fehleranfälligen Mausklicks bevorzugt.
-5. **Sicherheit geht vor (Safe Guardrails):** Destruktive Operationen (Dateien löschen, ungespeicherte Fenster schließen) dürfen niemals blind ausgeführt werden. Shell-Befehle werden bewusst **nicht** unterstützt – es gibt keine `run_command`-Action.
-6. **Schlankes Kern-System mit Control Panel:** Die Konfiguration erfolgt über ein Web-Panel (`http://127.0.0.1:8088`) oder `config.yaml`, nicht über Hardcoding im Python-Code.
+Plattformadapter kapseln Fenster, UI-Elemente/semantische Aktionen, Unicode-Text, Tastatur/Maus, Capture/DPI, Medien/Lautstärke und Berechtigungen. Nicht verfügbare Fähigkeiten sichtbar melden. Mock-Tests belegen keine reale Plattformunterstützung.
 
----
+## 2. Audio und Trigger
 
-## 📦 2. Technologie-Stack & Bibliotheken
+- Ein gemeinsamer Aufnahmeweg versorgt Ringbuffer, Wake Word und Auftragsaufnahme. Inferenz darf Audio und Not-Aus nicht blockieren.
+- PTT: rechte Strg-Taste halten; Loslassen startet Verarbeitung. Umschaltmodus sowie freie Tastatur-/Maustasten sind Alternativen.
+- Wake-Word-Adapter mit austauschbarer Modellquelle: zunächst vorhandenes „Computer“-Modell prüfen und verwenden. Kein mitgeliefertes openWakeWord-Standardmodell unterstellen.
+- Modellherkunft, Lizenz, Revision und Prüfsumme erfassen. Nutzermodelle und persönliche Stimmen außerhalb des Repos. Optionaler Verifier standardmäßig aus; keine Sicherheitsauthentifizierung.
+- 16 kHz mono und zwei Sekunden Ringbuffer sind Ausgangswerte; Wake-Word-Schnitt/Pre-Roll müssen Satzanfänge erhalten.
+- Sprachende-Erkennung und Empfindlichkeit einstellbar, 1,2 Sekunden Stille vorläufiger Ausgangswert. Maximale Aufnahmedauer begrenzen.
+- Wake Word und PTT einzeln/gemeinsam nutzbar. Eigene Töne bei Audioverarbeitung berücksichtigen; eigene Sprachausgabe bleibt unterbrechbar.
+- Musik-/Stream-/Lautsprecherbedingungen praktisch prüfen, Echounterdrückung vorsehen. Optionales Absenken der Wiedergabe einschließlich Wiederherstellung bei Fehler/Abbruch.
 
-| Bereich | Empfohlene Bibliothek / Werkzeug | Begründung |
-| :--- | :--- | :--- |
-| **Sprache** | Python 3.10+ | Breites KI- und OS-Ökosystem |
-| **Wake Word** | `openWakeWord` + `onnxruntime` | Open-Source, < 1 % CPU-Last, vortrainiertes Modell für `"computer"` |
-| **Audio I/O & VAD** | `sounddevice`, `numpy`, `scipy` | Reine Wheel-Installation ohne `pyaudio` C++-Build-Probleme unter Windows |
-| **Screen Capture** | `mss`, `Pillow` | Ultraschnell (~5–10 ms pro Frame), plattformübergreifend, Multi-Monitor-fähig |
-| **Brain / Inferenz** | `transformers>=5.20.2` / `accelerate` / `torch` (Liquid `LiquidAI/LFM3-Omni-2B`, `trust_remote_code=True`) | Lokale Ausführung mit CUDA / DirectML / CPU Fallback |
-| **Aktionen / OS** | `pyautogui`, `pynput`, `pywinctl`, `webbrowser` | Maus, Tastatur, native Fenster-Handles (`pywinctl`) & Media-Keys |
-| **Control Panel** | `fastapi`, `uvicorn`, `pystray` | Leichtgewichtiges System-Tray + lokales Web-Dashboard |
-| **Konfiguration** | `pydantic`, `pyyaml` | Typisierte und validierte Einstellungen |
+## 3. Kontext und Grounding
 
----
+Reihenfolge: direkte Schnittstelle → Accessibility → visuelle Bedienung. Wenn möglich UI-Elemente semantisch aktivieren oder Werte setzen.
 
-## 🔄 3. Datenfluss & Schnittstellen-Verträge
+- Standard: Bildschirmkontext nach Bedarf. Fehlende Bilder selbstständig nachfordern; manuelle Capture-Optionen on_wake, on_speech_end und both bleiben möglich.
+- Bezug: angesprochenes/aktives Fenster, für Zeigebezüge zusätzlich zeitlich zugehörige Mausposition. Mehrdeutigkeit durch Rückfrage auflösen; fester Monitor manuell wählbar.
+- SnapshotContext enthält eindeutige ID, monotone Aufnahmezeit, Fenster-/Monitor-ID, physische Monitorgrenzen, Originalgröße, Ausschnitt, Skalierung/gegebenenfalls Padding sowie Cursorposition und deren Zeitbezug.
+- Aktionen referenzieren den konkreten Aufnahme-/Elementkontext. Bei zwei Bildern, Monitorwechseln oder Crops muss die Zuordnung eindeutig sein.
+- Interne Normalisierung 0..1000 möglich; modellnative Formate im Adapter übersetzen. Endpunkte, Crops, Padding, negative Monitorpositionen und gemischte Skalierungen korrekt rückrechnen und testen.
+- Windows-DPI-Awareness möglichst Per-Monitor v2 vor GUI-Initialisierung. PyAutoGUI allein ist keine Grundlage für garantierten Mehrmonitorbetrieb oder Unicode; geeignete Plattformimplementierungen vorsehen.
+- SoM nutzt kontextgebundene Elementkennungen, Labels und Grenzen; nummerierte Bildmarkierungen bei Bedarf. Sichtbarkeit auf Wunsch im Übungs-/Debug-Modus.
+- Kurze Zielvorschau vor visuellen Klicks standardmäßig an, Dauer einstellbar und abschaltbar. Eigene Overlays aus Analysebildern ausblenden.
 
-### Ablauf eines Sprachbefehls:
-```
-1. Trigger-Event:
-   openWakeWord erkennt "Computer" im laufenden Ring-Buffer (oder PTT gedrückt)
-        │
-        ├──> Feedback-Chirp (LCARS-Stil, < 50 ms)
-        │
-        ├─────────────────────────────────────────┐
-        ▼                                         ▼
-   Audio-Recorder übernimmt                  Screen-Capture schießt Snapshots
-   Nahtlos ab Ende des Wake-Words            (Standard `both`: Snapshot 1 beim
-   aus dem Ring-Buffer bis VAD               Wake-Word = Bildschirmkontext,
-   Stille meldet (z. B. 1.2s)                Snapshot 2 bei `on_speech_end` =
-                                             aktuelle Cursor-Position für
-                                             Zeigegesten wie "klicke hier")
-        │                                         │
-        └────────────────────┬────────────────────┘
-                             │
-                             ▼
-2. Brain-Anfrage:
-   LFM3-Omni-2B empfängt:
-   - System Prompt + JSON Schema + Aktuelle Cursor-Position (x_norm, y_norm)
-   - Audio-Puffer (16kHz Mono WAV / PCM)
-   - Bild-Puffer (Reskaliertes RGB Image + optionales Set-of-Marks Overlay;
-     bei `snapshot_timing: "both"` beide Snapshots)
-                             │
-                             ▼
-3. Brain-Antwort (Strukturiertes JSON mit Action-Chaining):
-   {
-     "intent": "search_on_youtube",
-     "spoken_response": "Suche nach Star Trek.",
-     "requires_confirmation": false,
-     "actions": [
-       {
-         "type": "click",
-         "target": "YouTube Search Input",
-         "x_norm": 450,
-         "y_norm": 72,
-         "button": "left"
-       },
-       {
-         "type": "type_text",
-         "text": "Star Trek TNG",
-         "press_enter": true
-       }
-     ]
-   }
-                             │
-                             ▼
-4. Actuator-Ausführung:
-   - Prüft Sicherheitsrichtlinie (`safe_mode` & `requires_confirmation`)
-   - Transformiert `x_norm, y_norm` (0..1000) -> echte Monitor-Koordinaten `(x, y)`
-   - Führt Aktionskette sequenziell aus
-   - Loggt Befehl, Snapshot & Klick-Koordinaten für das Control Panel
-```
+## 4. Inferenz und Aktionsvertrag
 
----
+- Erster Weg: lokaler llama.cpp-Server und LFM3-Omni-2B-GGUF. Austauschbare Backend-/Modelladapter; Transformers möglicher alternativer Weg.
+- Backend, Beschleunigung und Quantisierung getrennt konfigurieren. Unterstützte Kombinationen beim Einrichten praktisch prüfen, automatisch wählen und gerätespezifisch speichern. Manuelle Kontrolle und sichtbarer CPU-Fallback.
+- Tatsächlich aktive Hardware/Laufzeit anzeigen; keine pauschale CUDA/DirectML/NPU-Unterstützung behaupten.
+- Modellrevision, Laufzeit-, Prozessor-/Template- und Promptversion nachvollziehbar halten; Abhängigkeiten reproduzierbar festlegen.
+- Modellspezifisches offizielles Chat-/Tool-Template verwenden, Aktionsplanung explizit als Text-/Tool-Ausgabe. Native Tool-Ausgaben im Adapter normalisieren. Grammar/Constrained Decoding einsetzen, soweit mit dem Backend kompatibel; Validierung bleibt erforderlich.
+- Typisierte diskriminierte Aktionen mit begrenzten Parametern, Ziel- und Kontextreferenzen. Unbekannte Aktionen, unerlaubte Zusatzfelder, ungültige Koordinaten und unvollständige Antworten zurückweisen; begrenzte Korrekturanfrage erlauben.
+- Modell-/Verbindungsfehler unterbrechen kontrolliert. Mock-Modus nur ausdrücklich zur Entwicklung und getrennt von realer Ausführung; kein automatischer Mock-Fallback.
 
-## 🛠️ 4. Modul-Spezifikationen
+Aktionsfamilien: Fensterfokus, UI-Element bedienen, begrenzte Maus/Scroll/Hotkey-Aktionen, Unicode-Text, Medien und genaue Lautstärke, HTTP(S)-URL öffnen, registrierte App starten, optionale Tab-Aktionen, Kontextnachforderung und Rückfrage. Plugins ergänzen validierte Aktionen. Keine Shell-Aktion.
 
-### A. `computerflow/audio/`
-* `wake_word.py` & `recorder.py`:
-  * Nutzt **einen gemeinsamen** `sounddevice.InputStream` (16 kHz, Mono, `int16`), der kontinuierlich in einen `collections.deque`-Ringbuffer schreibt.
-  * Sobald `openWakeWord` für `"computer"` über `wake_word_sensitivity` ausschlägt (oder PTT gedrückt wird), wechselt die State-Machine auf `RECORDING`, behält den relevanten Pre-Roll aus dem Ringbuffer und nimmt auf, bis die Energie-/VAD-Erkennung für `vad_silence_duration_seconds` Stille meldet.
-* `feedback.py`:
-  * Synthetisiert per `numpy`/`scipy` den latenzfreien, subtilen **Feedback-Chirp** im LCARS-Stil (Wake, Action-Success, Error) ohne externe Audio-Assets zwingend vorauszusetzen. Aktivierung über `trigger.feedback_chirp`.
+## 5. Ausführung und Sicherheit
 
-### B. `computerflow/vision/`
-* `screen_capture.py`:
-  * Aktiviert beim Initialisieren unter Windows High-DPI Awareness (`SetProcessDpiAwareness(2)`), damit `mss` und `pyautogui` identische physische Pixel verwenden.
-  * Ermittelt bei `monitor_mode: "active_cursor"` über `pyautogui.position()` automatisch den Monitor, auf dem sich der Mauszeiger gerade befindet.
-  * Gibt ein `SnapshotContext`-Objekt zurück:
-    * `image`: Das auf `max_resolution` skalierte `PIL.Image`
-    * `monitor_bounds`: `{"left": int, "top": int, "width": int, "height": int}` des gecapturten Monitors
-    * `cursor_norm`: `(x_norm, y_norm)` der aktuellen Mausposition im Bereich `0..1000`
-  * Bietet die Hilfsmethode `norm_to_screen(x_norm: int, y_norm: int, monitor_bounds: dict) -> tuple[int, int]`, um Modell-Ausgaben exakt in OS-Mauskoordinaten umzurechnen.
-* `som_overlay.py`:
-  * Optionales Modul, das klickbare Regionen oder ein feines Koordinaten-/Badge-Grid einzeichnet, um kleinen Modellen (2B) präzises visuelles Grounding zu ermöglichen.
+Je Auftrag: eindeutige ID, Abbruchkennung, Deadline und Ausführungsstand. Zustände: Aufnahme, Planung/Kontextbeschaffung, Rückfrage/Bestätigung, Ausführung, Prüfung und Abschluss/Fehler/Abbruch.
 
-### C. `computerflow/brain/`
-* `actions_schema.py`:
-  * Definiert mittels `pydantic` die erlaubten Action-Typen:
-    * `click` (`x_norm`, `y_norm`, `button`, `double`, `element_id`)
-    * `move_to` (`x_norm`, `y_norm`)
-    * `scroll` (`dx`, `dy`)
-    * `type_text` (`text`, `press_enter`)
-    * `hotkey` (`keys`: `list[str]`)
-    * `focus_window` (`title_query`: `str`)
-    * `media_control` (`command`: `"play_pause" | "next" | "prev" | "volume_up" | "volume_down" | "mute"`)
-    * `open_url` (`url`: `str`)
-    * `launch_app` (`app_name`: `str`)
-* `lfm_client.py`:
-  * Kapselt die Inferenz des LFM3-Omni-2B Modells (CUDA / DirectML / CPU) inkl. sauberem Mock-/Stub-Modus für Tests ohne geladene Modellgewichte.
+Ablauf: normalisieren/validieren → Ziel/Fokus/Kontext prüfen → Richtlinie/Freigabe prüfen → einen Schritt ausführen → Ergebnis prüfen → Kontext aktualisieren und fortsetzen, begrenzt neu planen oder nachfragen.
 
-### D. `computerflow/actuator/`
-* `executor.py`:
-  * Iteriert über die `actions`-Liste einer `BrainResponse`.
-  * Blockiert nicht-freigegebene Aktionen (gemäß `config.actuator`) oder fordert bei `requires_confirmation: true` / `safe_mode` Bestätigung an.
-  * Nutzt `os_actions.py` (`pywinctl` für schnellen Fensterwechsel, `pyautogui` Media-Keys) und `ui_actions.py` (normalisierte Mausklicks und Tastatureingaben).
+- Alltagsbedienung direkt. Senden, Kaufen, Löschen, Verwerfen ungespeicherter Änderungen und sensible Einstellungsänderungen vor dem verbindlichen Schritt bestätigen.
+- Bestätigung an Aktion, Ziel und Inhalt binden, zeitlich begrenzen und bei Änderungen verwerfen. Sprache („Computer, bestätigen“/„Abbrechen“) und Panel unterstützen. Executor entscheidet unabhängig vom Modell; Schlüsselwörter allein genügen nicht.
+- Shell-Verbot auch für Hotkey-/Text-/App-Kombinationen durchsetzen. Programmstarts nur über registrierte Anwendungen/Aliase mit geprüften Parametern. URLs nur HTTP(S).
+- Bildschirm-/Plugininhalte als untrusted Daten behandeln; sie dürfen keine Berechtigungen oder Freigaben erteilen.
+- Nach relevanten UI-Änderungen erneut prüfen. Klick → Texteingabe erfordert richtigen Eingabefokus. Gesendetes OS-Ereignis allein ist kein Erfolg.
+- Keine blinden Wiederholungen nicht idempotenter Aktionen wie Wiedergabe umschalten oder Nachricht senden.
+- Globaler konfigurierbarer Not-Aus und Sprachstopp unabhängig von Inferenz. Abgebrochene Aufträge durch verspätete Antworten niemals fortsetzen. Tasten und vorübergehende Audioänderungen sicher zurücksetzen.
+- Relevante manuelle Fenster-/Fokusänderung unterbricht UI-Aktion und löst Zustandsprüfung aus. Wiederherstellung zeitlich und in Versuchen begrenzen, ausgeführte Teilschritte ausweisen; keine pauschale Rückgängigmachung versprechen.
+- Übungsmodus zeigt nächsten Schritt/Ziel und Bedienweg, führt erst nach ausdrücklicher Freigabe aus.
 
-### E. `computerflow/panel/`
-* Lokales Web-Dashboard unter `http://127.0.0.1:8088` (FastAPI).
-* Zeigt Status, letzte Befehle, erkannte Aktionen, den letzten Snapshot inkl. eingezeichnetem Ziel-Klickpunkt und erlaubt das Bearbeiten der `config.yaml` in Echtzeit.
-* System-Tray-Icon (`pystray`), um den Assistenten zu pausieren, einen manuellen Trigger auszulösen oder das Dashboard zu öffnen.
+## 6. Browser und Plugins
 
----
+- Browserübergreifende Grundbedienung ohne Erweiterung erhalten und praktisch erproben. Nicht jede Drittanwendung ist automatisch als kompatibel anzusehen.
+- Erste optionale Erweiterung für Firefox. Chrome/Edge und weitere später.
+- Browser-/Profil-/Tabkontext, Verbindungsstatus und Fähigkeiten melden. Bei Mehrdeutigkeit nachfragen; ohne Erweiterung auf allgemeine Bedienwege zurückgreifen.
+- Lokale Verbindung authentifizieren und Gegenstellen prüfen.
+- Plugins einzeln aktivieren, Aktionen und Zugriffe beschreiben. Nur verfügbare aktive Tools dem Modell anbieten. Richtlinien, Abbruch und Ergebnisprüfung gelten auch hier.
+- Eigene Integrationen nutzen den Pluginvertrag; komfortable Community-Installation später.
 
-## 📋 5. Konkreter Arbeitsauftrag für den nächsten Agenten
+## 7. Oberfläche und Funktionen
 
-Wenn du als Agent dieses Projekt implementierst, halte dich an folgende Reihenfolge:
+- Lokales Web-Panel plus Tray für Pause, Trigger, Status, Einstellungen, Verlauf, Profile, Plugins und Makros. Zu Beginn genügt eine minimale Oberfläche für den jeweiligen Meilenstein.
+- Setup: Mikrofon/Pegel, PTT, Modelle/Laufzeit mit Downloadfortschritt und lokalen Alternativen, Hardwarewahl, Berechtigungen, Probebefehl; Wake-Word-Kalibrierung/Verifier nach Verfügbarkeit.
+- Loopback-Bindung, zufälliges Sitzungstoken, Host-/Origin-Prüfung, CSRF-Schutz und restriktive CORS-/WebSocket-Regeln. Token nicht in URLs/Logs. Fehlende Komponenten/Berechtigungen mit Lösungsschritten anzeigen.
+- Lokale Sprachausgabe standardmäßig knapp, still/gesprächig wählbar. Rückfragen/Freigaben/Fehler sprechen, einfache Erfolge per Ton; Inhalte im Panel verfügbar halten.
+- Kurzzeitgedächtnis standardmäßig an, zeitlich/inhaltlich begrenzt, RAM. Ziele erneut prüfen. „Vergiss den Kontext“ löscht es; keine impliziten dauerhaften Erinnerungen.
+- Diktieren explizit starten/pausieren/beenden; gewöhnliche Sprache als Text, klar reservierte Steuerbefehle. Satzzeichen/Umlaute/Unicode, Pause bei unerwartetem Eingabezielwechsel. Absenden eigener bestätigungspflichtiger Schritt.
+- Vorlesen/Zusammenfassen/Erklären bezieht sich auf Auswahl, aktives Fenster oder Cursorbereich. Text-/Accessibility-Quellen bevorzugen, Bilder nach Bedarf; Ausschlüsse beachten.
+- Medien: relative/genaue Lautstärke, System und einzelne Anwendungen unterscheiden. Explizites Wiedergabeziel, sonst letzter eindeutiger Bezug/eindeutig aktive Wiedergabe; Mehrdeutigkeit klären.
+- Anwendungen erkennen, Aliase je Gerät im Panel zuweisen.
+- Makros/Szenen mit Bearbeitung/Import/Export und Gerätebindung. Sprachbeschreibungen ergeben geprüfte Entwürfe; dieselben Ausführungsregeln verwenden.
 
-1. **Schritt 1: Grundgerüst & Konfiguration (`computerflow/core/`)**
-   * Erstelle die Paketstruktur unter `computerflow/`.
-   * Implementiere `config_manager.py` mit `pydantic` passend zur erweiterten `config.example.yaml` sowie `state.py` (Event-Bus & Command-History).
-2. **Schritt 2: Screen-Capture & Koordinaten-Transformation (`computerflow/vision/`)**
-   * Implementiere `screen_capture.py` inkl. Windows High-DPI Fix, `active_cursor`-Monitorerkennung und `norm_to_screen()` Umrechnung (`0..1000` -> echte Monitor-Koordinaten).
-   * Implementiere `som_overlay.py` für optionales visuelles Grounding.
-3. **Schritt 3: Audio-Ringbuffer, Trigger & Feedback (`computerflow/audio/`)**
-   * Implementiere `feedback.py` (synthetischer Feedback-Chirp im LCARS-Stil), `recorder.py` (Rolling Ring-Buffer + VAD), `wake_word.py` (`openWakeWord` über `sounddevice`) und `push_to_talk.py`.
-4. **Schritt 4: Action-Schema & Brain-Client (`computerflow/brain/`)**
-   * Implementiere `actions_schema.py` (unterstützt Action-Chaining und `0..1000` Koordinaten), `prompt_templates.py` und `lfm_client.py` (mit echtem Model-Loader + intelligentem Mock-Fallback).
-5. **Schritt 5: Actuator & Native OS-Reflexe (`computerflow/actuator/`)**
-   * Implementiere `os_actions.py` (`pywinctl` Fensterfokus, Media-Keys, URLs), `ui_actions.py` und `executor.py`.
-6. **Schritt 6: Settings-Panel, Tray-Icon & Tests (`computerflow/panel/`, `tests/`)**
-   * Implementiere das FastAPI-Dashboard (`server.py`, `web/`), `tray.py`, `main.py` sowie Unit-Tests für Config, Koordinaten-Mapping und Action-Execution.
+## 8. Datenschutz und Profile
+
+- Audio/Bilder standardmäßig RAM, nach Abschluss bzw. Ende des notwendigen Verwendungszwecks freigeben. Sitzungsverlauf mit Auftrag/Aktionen/Ergebnis.
+- Dauerhafte Historie/Debug-Daten nur ausdrücklich aktivieren; Zeit-/Speichergrenzen und Löschfunktion. Logs dürfen dies nicht umgehen.
+- Aufnahme-Ausschlüsse vor Capture prüfen, auch sensible Fenster in größeren Bildausschnitten berücksichtigen. Bei benötigtem ausgeschlossenen Bildkontext Einschränkung erklären und erlaubte Alternativen prüfen.
+- Korrekturen freiwillig als lokale Testfälle. Audio/Bilder separat ausdrücklich freigeben. Alias-/Makro-Vorschläge vor Übernahme bestätigen. Automatisches Modelltraining später optional.
+- Benutzerspezifische Verzeichnisse, wählbarer Modellpfad, Standardprofil und weitere Geräteprofile. Import prüft Geräte/Pfade; Stimmen und Geheimnisse nicht stillschweigend exportieren.
+
+## 9. Paketierung und begleitende Qualität
+
+Bei Implementierung pyproject.toml, uv-Lockfile und passende optionale Extras erstellen. Requirements sind derzeit vorläufig.
+
+Automatisierte Prüfungen für Konfiguration, Transformationen, Aktionsvertrag, Bestätigungsbindung, Abbruch und verspätete Ergebnisse. Modellversuche prüfen Format und tatsächlichen Auftragserfolg samt Latenz/Speicher. Fehler als Regressionen aufnehmen; simulierte und echte Bedienung getrennt ausweisen.
+
+GitHub Actions für plattformunabhängige Tests auf Windows/Linux/macOS; reale Plattformadapter auf ihrem Zielsystem prüfen, sobald umgesetzt. Windows-Installer geplant, portable Ausgabe später optional. Releaseumfang folgt ROADMAP.md.
