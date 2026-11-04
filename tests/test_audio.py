@@ -68,18 +68,13 @@ def test_portaudio_errors_are_reported_without_raw_exception(monkeypatch):
     def fail(**kwargs):
         raise PortAudioError("private driver detail")
 
-    monkeypatch.setitem(
-        __import__("sys").modules,
-        "sounddevice",
-        SimpleNamespace(
-            query_hostapis=lambda: [{"name": "MME", "default_input_device": 0}],
-            query_devices=lambda: [
-                {"name": "Test microphone", "hostapi": 0, "max_input_channels": 1}
-            ],
-            default=SimpleNamespace(device=(0, 0)),
-            check_input_settings=fail,
-        ),
+    fake_audio = SimpleNamespace(
+        query_hostapis=lambda: [{"name": "MME", "default_input_device": 0}],
+        query_devices=lambda: [{"name": "Test microphone", "hostapi": 0, "max_input_channels": 1}],
+        default=SimpleNamespace(device=(0, 0)),
+        check_input_settings=fail,
     )
+    monkeypatch.setattr("computerflow.audio.recorder.sounddevice", lambda: fake_audio)
     recorder = Recorder(TriggerConfig(), lambda: None)
     with pytest.raises(ComputerFlowError, match="Mikrofon nicht verfügbar") as error:
         recorder.open()
