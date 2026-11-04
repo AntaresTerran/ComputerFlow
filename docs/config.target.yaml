@@ -1,0 +1,156 @@
+# ComputerFlow – langfristiges Zielschema, keine ladbare 0.0.1-Konfiguration.
+# Beschlossene Verhaltensstandards; Zahlen/Limits sind vorläufige Startwerte.
+# config.yaml enthält lokale Einstellungen und gehört nicht ins Repository.
+schema_version: 1
+
+general:
+  name: "ComputerFlow"
+  debug: false
+  platform: "auto" # Zunächst ist nur Windows als Implementierungsziel vorgesehen.
+  profile: "default"
+
+paths:
+  config_dir: null # null: benutzerspezifisches Systemverzeichnis
+  data_dir: null
+  model_dir: null # frei wählbar
+
+trigger:
+  mode: "push_to_talk" # Einstieg; später auch wake_word oder both
+  push_to_talk:
+    key: "ctrl_r"
+    mode: "hold" # hold oder toggle; bei hold beendet Loslassen die Aufnahme
+  wake_word:
+    adapter: "openwakeword"
+    phrase: "computer"
+    model_path: null # Separates vorhandenes/Nutzermodell; kein eingebautes computer-Modell
+    sensitivity: 0.5
+    personal_verifier:
+      enabled: false
+      profile_path: null
+  mic_device_id: null
+  sample_rate: 16000
+  ring_buffer_seconds: 2.0
+  vad_silence_duration_seconds: 1.2
+  max_recording_seconds: 30
+  feedback_chirp: true
+
+audio:
+  echo_cancellation: "auto" # Tatsächliche Verfügbarkeit im Setup prüfen/anzeigen
+  interruptible_output: true
+  duck_playback:
+    enabled: false
+    restore_on_finish: true
+
+vision:
+  enabled: true
+  capture_policy: "on_demand"
+  snapshot_timing: "auto" # Manuelle Optionen: on_wake, on_speech_end, both
+  context_source: "target_or_active_window"
+  monitor_mode: "context" # alternativ primary oder fixed
+  monitor_id: null
+  include_cursor_context: true
+  max_resolution: [1920, 1080] # Vorläufig; tatsächlichen Modellprozessor berücksichtigen
+  coordinate_space: "normalized_1000" # Intern; Adapter übersetzt modellnative Formate
+  som:
+    mode: "on_demand"
+    show_in_debug: false
+  target_preview:
+    enabled: true
+    duration_ms: 400 # Einstellbarer Startwert
+  capture_exclusions: [] # Fenster-/App-Regeln, vor Aufnahme prüfen
+
+model:
+  backend: "llama_cpp" # Austauschbarer Laufzeitadapter
+  endpoint: "http://127.0.0.1:8080"
+  model_id: "LiquidAI/LFM3-Omni-2B-GGUF"
+  model_revision: null # Bei Einrichtung konkret auflösen und festhalten
+  acceleration: "auto" # Nur nachgewiesen unterstützte Kombinationen wählen
+  quantization: "auto"
+  cpu_fallback: true
+  report_fallback: true
+  temperature: 0
+  max_tokens: 512
+  prompt_version: "v1"
+  mock_mode: false # Nur ausdrücklich aktivierter Entwicklungsmodus
+  max_response_repairs: 1
+
+execution:
+  verify_target_before_action: true
+  verify_results: true
+  pause_on_relevant_manual_change: true
+  max_steps: 12
+  timeout_seconds: 90
+  max_recovery_attempts: 2
+  discard_cancelled_results: true
+  practice_mode: false
+
+safety:
+  confirmation:
+    required_for: ["send", "purchase", "delete", "discard_changes", "sensitive_settings"]
+    bind_to_action_target_and_content: true
+    timeout_seconds: 30
+    allow_voice: true
+    allow_panel: true
+  emergency_stop:
+    hotkey: "ctrl+alt+escape" # Konfigurierbarer vorläufiger Vorschlag
+    voice_enabled: true
+  allowed_url_schemes: ["http", "https"]
+  registered_apps_only: true
+  # Shell-Zugriff ist grundsätzlich ausgeschlossen, auch über Aktionskombinationen.
+
+feedback:
+  mode: "brief" # silent, brief, conversational
+  local_speech: true
+  language: "de"
+
+memory:
+  enabled: true
+  storage: "ram"
+  ttl_seconds: 180 # Einstellbarer Startwert
+  max_commands: 3
+  clear_phrase: "Vergiss den Kontext"
+
+privacy:
+  audio_storage: "ram"
+  screenshot_storage: "ram"
+  session_history: true
+  persistent_history:
+    enabled: false
+    retention_hours: 24
+    max_size_mb: 50
+  debug_recordings:
+    enabled: false
+    retention_hours: 24
+    max_snapshots: 50
+    max_size_mb: 100
+  correction_cases:
+    enabled: false
+    require_audio_image_consent: true
+
+panel:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8088
+  session_token: "auto" # Zufällig zur Laufzeit erzeugen; kein festes Standardpasswort
+  validate_host_and_origin: true
+  csrf_protection: true
+  theme: "dark"
+  start_minimized_to_tray: true
+  setup_on_first_start: true
+
+integrations:
+  browser:
+    extension_optional: true
+    preferred: "firefox"
+    generic_ui_fallback: true
+  plugins:
+    enabled: [] # Nur verfügbare, ausdrücklich aktivierte Tools anbieten
+
+apps:
+  aliases: {} # Profilabhängige Zuordnung erkannter/registrierter Anwendungen
+
+features:
+  dictation: true
+  screen_reading: true
+  macros: true
+# features beschreibt Zielumfang, keine bereits implementierten Fähigkeiten.

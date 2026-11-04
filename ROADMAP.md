@@ -1,6 +1,6 @@
 # ComputerFlow – Roadmap
 
-Beschlossener Planungsstand: 3. November 2026. **Aktuell: Konzeptstand, noch kein Release.**
+Planungsstand 4. November 2026. **Aktueller Entwicklungsstand 0.0.2.** Nachweise und Grenzen stehen im [Prüfbericht](docs/VALIDATION.md).
 
 ## Leitlinien
 
@@ -16,6 +16,8 @@ Beschlossener Planungsstand: 3. November 2026. **Aktuell: Konzeptstand, noch kei
 
 ### 0.0.1 – Erster nutzbarer Windows-Durchstich
 
+**Status: erreicht am 3. November 2026.** Reale lokale Audioinferenz mit synthetischen deutschen Sprachaufträgen führt durch den PTT-Verarbeitungsweg zu geprüften Windows-Aktionen. Installation/Start des authentifizierten Servers, Vulkan sowie CPU-Betrieb sind geprüft. Die physische Stimme-/Raumakustik-Erprobung durch den Nutzer bleibt eine gesonderte Alltagserprobung.
+
 **Ergebnis:** Ein gesprochener Auftrag führt lokal eine erste echte Systemaktion aus.
 
 - Python-Paket, Konfiguration und gemeinsame Plattform-/Inferenzschnittstellen; llama.cpp als erster lokaler Modellweg.
@@ -26,6 +28,8 @@ Beschlossener Planungsstand: 3. November 2026. **Aktuell: Konzeptstand, noch kei
 **Erreicht, wenn:** PTT-Aufträge auf Windows echte erlaubte Aktionen auslösen; ungültige Antworten, Modellfehler und Abbrüche kontrolliert behandelt werden. Bereits hier Rückfragen/Freigaben für vorhandene betroffene Aktionen ermöglichen.
 
 ### 0.0.2 – „Computer“ und flüssige Audiointeraktion
+
+**Status:** Implementiert und mit lokalen Modellen geprüft. Die Alltagserprobung mit der eigenen Stimme und Raumakustik folgt auf dem Rechner des Nutzers.
 
 **Ergebnis:** ComputerFlow lässt sich zusätzlich freihändig aktivieren.
 

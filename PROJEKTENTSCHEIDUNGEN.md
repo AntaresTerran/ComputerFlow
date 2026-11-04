@@ -1,6 +1,6 @@
 # ComputerFlow – Projektentscheidungen und Funktionsumfang
 
-Stand: **3. November 2026**. Die ursprüngliche Vorschlagsliste wurde gemeinsam durchgegangen. Die folgenden Punkte sind beschlossen; „geplant“ bedeutet nicht implementiert. Reihenfolge: [ROADMAP.md](ROADMAP.md). Verbindliche technische Verträge: [AGENT_SPEC.md](AGENT_SPEC.md).
+Stand **4. November 2026**. „Geplant“ kennzeichnet beschlossene, spätere Funktionen. Reihenfolge und technische Verträge stehen in [ROADMAP.md](ROADMAP.md) und [AGENT_SPEC.md](AGENT_SPEC.md).
 
 ## 1. Rahmen und Vorgehen
 
@@ -9,6 +9,7 @@ Stand: **3. November 2026**. Die ursprüngliche Vorschlagsliste wurde gemeinsam 
 - Umsetzung mit begleitenden Tests. Die ursprünglich vorgeschlagene separate Phase 0.5/Modelltestphase entfällt.
 - PTT zuerst und Wake Word unmittelbar danach. Bedarfsgesteuerte Verarbeitung muss nötigen Kontext selbst nachholen; fehlende Fähigkeiten sichtbar melden.
 - Erste Version 0.0.1, größere nutzbare Etappen, langer offener Weg bis 1.0.
+- Alle ComputerFlow-eigenen Dateien und Daten bleiben in passenden Unterordnern des Programmordners. Das gilt rückwirkend und für Entwicklung und Release. Dazu gehören Modelle, Laufzeit, Profile, Caches und temporäre Dateien.
 
 ## 2. Audio und Rückmeldung
 
@@ -59,7 +60,7 @@ Stand: **3. November 2026**. Die ursprüngliche Vorschlagsliste wurde gemeinsam 
 | Ausschlüsse | Anwendungen/Fenster vor Capture ausschließen; benötigten gesperrten Bildkontext verständlich erklären. |
 | Oberfläche | Tray und lokales Web-Panel für Status, Einstellungen, Verlauf, Profile, Makros und Plugins. |
 | Setup | Mikrofon, PTT, Modelle/Laufzeit samt Downloadfortschritt/lokalen Alternativen, Hardware, Berechtigungen und Probebefehl; Wake-Word-Einrichtung nach Verfügbarkeit. |
-| Profile | Benutzerverzeichnisse, wählbarer Modellspeicher, Standard-/Geräteprofile, Import/Export mit Neuzuordnung unpassender Geräte/Pfade. |
+| Profile | Wählbare Unterordner im Programmordner für Benutzerprofile und Modelle, Standard-/Geräteprofile, Import/Export mit Neuzuordnung unpassender Geräte/Pfade. |
 | Kurzzeitgedächtnis | Standardmäßig aktiv, begrenzt und flüchtig; Ziele erneut prüfen; „Vergiss den Kontext“. |
 | Diktieren | Expliziter Modus, Satzzeichen/Unicode, klar reservierte Steuerbefehle, Pause bei Eingabezielwechsel; Absenden separat bestätigen. |
 | Lesen/Erklären | Auswahl, Fenster oder Cursorbereich vorlesen/zusammenfassen/erklären; Text/Accessibility bevorzugen und Datenschutz beachten. |

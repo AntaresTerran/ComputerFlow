@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "computerflow"
+version = "0.0.2"
+description = "Local voice-controlled desktop assistant, Windows first"
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+license = "MIT"
+dependencies = [
+  "httpx>=0.28,<0.29",
+  "pydantic>=2.11,<3",
+  "PyYAML>=6.0.2,<7",
+  "psutil>=7.2,<8",
+]
+
+[project.optional-dependencies]
+desktop = [
+  "sounddevice>=0.5,<0.6",
+  "pynput>=1.8,<2",
+  "pycaw>=20251023; sys_platform == 'win32'",
+  "winrt-Windows.Media.Control>=3.2,<4; sys_platform == 'win32'",
+  "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",
+  "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
+  "vosk==0.3.45; sys_platform == 'win32' and platform_machine == 'AMD64'",
+  "webrtcvad-wheels>=2.0.14,<3",
+]
+
+[project.scripts]
+computerflow = "computerflow.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.4,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1",
+  "winrt-Windows.Media>=3.2,<4; sys_platform == 'win32'",
+  "winrt-Windows.Media.Playback>=3.2,<4; sys_platform == 'win32'",
+  "winrt-Windows.Media.Core>=3.2,<4; sys_platform == 'win32'",
+  "winrt-Windows.Storage>=3.2,<4; sys_platform == 'win32'",
+  "winrt-Windows.Storage.Streams>=3.2,<4; sys_platform == 'win32'",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/computerflow"]
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+  "src", "tests", "docs", ".github", "README.md", "LICENSE", "pyproject.toml", "uv.lock",
+  "AGENT_SPEC.md", "PROJEKTENTSCHEIDUNGEN.md", "ROADMAP.md", "config.example.yaml",
+  "requirements.txt", "requirements-transformers.txt", "scripts", "Start-ComputerFlow.ps1",
+  "CHANGELOG.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+cache_dir = ".computerflow/pytest-cache"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["windows: real read-only Windows integration tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+cache-dir = ".computerflow/ruff-cache"
+
+[tool.uv]
+cache-dir = ".computerflow/cache"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]

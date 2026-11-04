@@ -58,3 +58,11 @@ scratch/
 .vscode/
 .idea/
 *.swp
+
+# Local build/test tooling
+.computerflow/
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage

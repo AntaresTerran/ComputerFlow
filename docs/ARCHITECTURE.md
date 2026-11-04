@@ -1,0 +1,51 @@
+# Implementierungsstand 0.0.2
+
+Die verbindliche Zielarchitektur steht in [AGENT_SPEC.md](../AGENT_SPEC.md). Dieses Dokument beschreibt ausschließlich den vorhandenen Code.
+
+## Ablauf
+
+`audio.session.VoiceSession` öffnet einen Mikrofonstream und beobachtende Tastatur-/Maushooks. Der Callback legt begrenzte PCM16-Blöcke und absolute Audiopositionen in den RAM-Ringpuffer. Halten/Loslassen oder der Umschaltmodus steuern PTT. Timer und Byteobergrenze begrenzen Aufnahmen unabhängig voneinander.
+
+`audio.wake.WakeSource` kapselt den austauschbaren Erkenner. Der erste Adapter nutzt ein vorhandenes deutsches Vosk-Modell. Das Wortende von „Computer“ ist der Schnittpunkt für die Aufnahme; ein kleiner Überlapp schützt den unmittelbar folgenden Laut. WebRTC VAD, der relative Sprachpegel und die konfigurierbare Stillzeit bestimmen das Sprachende. Ein separater Auftragszustand leitet frische Audioblöcke während Planung und Sprachausgabe an die Stopp-Erkennung. Ergebnisse aus einem veralteten Audiozustand werden verworfen. Der Erkenner läuft außerhalb der Asyncio-Schleife und ist vom Modellserver unabhängig.
+
+`audio.feedback` verwendet Windows SAPI für lokale Sprache und kurze Töne für Aktivierung/Erfolg. Die Wake-Erkennung wartet bei eigener Ausgabe und kurz danach. Die Stopp-Erkennung bleibt während der gesprochenen Ausgabe aktiv. Optionale Absenkung verwendet die Masterpegel der anderen Windows-Wiedergabesitzungen. Sie setzt ihre Änderung am Ende zurück und berücksichtigt manuelle Zwischenänderungen. Der Systempegel und einzelne Audiokanäle werden dabei nicht umgestellt.
+
+Der optionale `audio.speaker.SpeakerVerifier` vergleicht einen Wake-Auftrag mit drei freiwillig eingelernten Merkmalen. Rohaufnahmen bleiben flüchtig. Die numerischen Profile werden mit Windows DPAPI geschützt, können lokal gelöscht werden und sind von Aktionsfreigaben getrennt.
+
+`core.jobs.Job` erhält schon beim Aufnahmestart eine ID, einen monotonen Startzeitpunkt und eine Deadline. Seine Abbruchkennung bleibt über Aufnahme, Planung, Freigabe und Ausführung dieselbe, auch zwischen PTT-Loslassen und Workerstart. Ein Abbruch beendet wartende Tasks und verwirft verspätete Ergebnisse. Ein schon an Windows gesendeter Schritt kann nicht rückgängig gemacht werden und wird ausgewiesen.
+
+`platform.DesktopPlatform` liefert einen eindeutig bezeichneten Desktopkontext mit Aufnahmezeit, sichtbaren Fenstern (Handle und Prozess-ID), Vordergrund, eindeutig zugeordneten Mediensitzungen und Audioausgabegerät. Diese erste Version nimmt keine Bilder auf. Während Planung und Freigabe überwacht `app.Assistant` den Vordergrund; eine Änderung unterbricht den Auftrag.
+
+`brain.InferenceBackend` erhält Audio oder Text plus diesen Kontext. `LlamaCppBackend` verwendet ausschließlich einen numerischen HTTP-Loopback-Endpunkt, ignoriert Proxy-Umgebungsvariablen und folgt keinen Weiterleitungen. Chat-Serialisierung und offizielles Modelltemplate bleiben beim Server. PCM-WAV wird im RAM base64-kodiert und als `input_audio` mit der offiziellen ASR-Aufgabe `Perform ASR in German.` übergeben. Ein erkannter kurzer Abbruchbefehl beendet den Auftrag vor der Aktionsplanung. Die anschließende Textplanung nutzt Prompt v3 und ein schemaerzwungenes modellspezifisches Intentformat. Der automatische Reasoning-Parser trennt LFM3s leeren Think-Steuerblock von der JSON-Grammatik. Die einzige zulässige normalisierte native Toolantwort heißt `computerflow_decision`.
+
+`brain.grounding` übersetzt streng geprüfte Modell-Intents in den internen Aktionsvertrag. Das Modell extrahiert einen genannten Fenster-/App-Namen; es erzeugt keine internen Ziel-IDs. Nicht in der Anweisung enthaltene Namenszusätze werden verworfen. Der Adapter vergleicht Namen lokal, berücksichtigt ASR-getrennte Wortzusammensetzungen und bindet genau einen Treffer an aktuelle Kontext-/Ziel-IDs. Mehrere oder fehlende Treffer erzeugen eine Rückfrage unabhängig von der Modellentscheidung. Der Modellplanung werden keine Fenstertitel oder Sitzungs-IDs geschickt; für relative Lautstärke erhält sie den aktuellen Prozentwert. Eine eng begrenzte ASR-Korrektur rekonstruiert zerlegte deutsche Prozentzahlen wie „auf 9 und 30 Prozent“ zu „auf 39 Prozent“.
+
+`core.contracts` erlaubt genau eine diskriminierte Aktion oder eine Rückfrage/Antwort/Abbruchentscheidung. Zusatzfelder, unbekannte Aktionen, unvollständige Ausgaben, doppelte JSON-Schlüssel, ungültige Typen und Werte werden zurückgewiesen. Höchstens eine Formatkorrektur ist möglich; ungültige Ausgaben werden nicht als neue Anweisungen zurückgespielt. Ein Modellfehler aktiviert niemals eine Simulation.
+
+`actuator.Executor` validiert erneut an der Ausführungsgrenze: Kontext-ID/Alter, konkrete Zielzugehörigkeit und gemeldete Fähigkeiten. Im Übungsmodus bindet er eine einmalige Freigabe an Auftrag, vollständig serialisierte Aktion und Ablaufzeit. Nur der lokale F6-Bedienweg löst diese Freigabe aus. Der aktuelle Vertrag enthält keine folgenreiche Aktion wie Senden/Löschen, deshalb gibt es noch keinen entsprechenden Produkt- oder Sprachfreigabefluss.
+
+`WindowsPlatform` prüft Zielidentität und Vordergrund erneut unmittelbar vor der Aktion. Fenster werden über User32 fokussiert; der wirkliche Vordergrund muss danach passen. Lautstärke verwendet Core Audio und prüft Zielgerät und zurückgelesenen Wert. Abspielen/Pausieren adressiert eine konkrete SMTC-Sitzung, prüft deren Steuerfähigkeit und anschließend den Playback-Status. Ein gesendetes Ereignis genügt nicht als Erfolg. Der Adapter verwendet keine generischen Hotkeys und keine Shell. Nicht bestätigte Aktionen werden nicht automatisch wiederholt.
+
+## Grenzen und Lebensdauer
+
+Die Konsole ist die minimale Oberfläche. Der Sitzungsverlauf umfasst höchstens 20 Ergebnisse im RAM. Eine offene Rückfrage wird einmalig und höchstens 60 Sekunden an den nächsten Auftrag weitergegeben. Es gibt noch kein allgemeines Folgeauftragsgedächtnis. Audio und Backendpayloads werden nicht in den Verlauf übernommen. Es wird kein Webserver oder Tray gestartet und kein dauerhaftes Debug-/Aufnahmeverzeichnis angelegt.
+
+`runtime.artifacts` legt Laufzeitbuild, Modellrevision, Downloads, Dateigrößen und SHA-256 fest. Fortsetzbare Downloads werden erst nach Integritätsprüfung an ihren endgültigen Namen verschoben. Die ZIP-Installation prüft Pfade und überschreibt keine unveränderten, eventuell bereits laufenden Binärdateien. `config.yaml` liegt im Programmordner. Gewichte, Laufzeit, Geräteprofil, Cache und temporäre Dateien liegen standardmäßig in `.computerflow/` und werden von Git ignoriert. Das Installationsprofil speichert relative Pfade zu seinen Dateien.
+
+`runtime.manager` prüft verfügbare Vulkan-Geräte mit dem echten Serverprogramm und speichert die konkrete Auswahl. Der erste Adapter mit ausreichend gemeldetem freiem Speicher wird verwendet; ein Vulkan-Startfehler wechselt im Automatikmodus sichtbar zur CPU. Ein expliziter Vulkan-Wunsch schlägt kontrolliert fehl, statt stillschweigend umzuschalten. Ein dateibasierter Lock verhindert konkurrierende Start-/Stop-Operationen. Vor dem Start werden Portbelegung und Modell-/Projektorprüfsummen geprüft. Prozesse werden nur bei passender PID, Erstellungszeit und exaktem ausführbaren Pfad als eigene Server anerkannt und beendet.
+
+Der verwaltete Modellserver bindet standardmäßig `127.0.0.1:47831`, läuft unsichtbar ohne Web-UI, Logging, Agenttools, MCP-Proxy oder Internetmodellnachladen und verlangt für Inferenz/Metadaten einen zufälligen API-Schlüssel. ComputerFlow übergibt den Schlüssel über das Server-Environment und speichert ihn per Windows DPAPI geschützt. Geerbte `LLAMA_*`-/`GGML_*`-Einstellungen werden entfernt. Der Server bleibt nach dem Schließen des Assistenten für Folgestarts verfügbar. `server stop` beendet ihn. Die Diagnose nennt Build, Quantisierung, Template-Hash und die Hardwarewahl. Speicherangaben im Installationsprofil stammen aus dem Setup.
+
+Bei `runtime.managed: false` betreibt der Nutzer einen eigenen Server mit eigener Speicher-/Loggingkonfiguration. In diesem Fall verwaltet ComputerFlow keine Gewichte oder Beschleunigung. Über den implementierten Server-API-Teil allein ist dessen Hardware nicht nachgewiesen.
+
+Das Paket ist plattformunabhängig importierbar. Reale Desktopausführung unterstützt ausschließlich Windows. Tests mit `SimulatedDesktop` oder HTTP-Mocks belegen Kontrollfluss und Verträge, keine tatsächliche Modellqualität oder Plattformkompatibilität.
+
+## Nachbesserungen nach dem manuellen Sprachtest vom 4. November 2026
+
+Die Mikrofonauswahl in `audio.selection` speichert Gerätename und Host-API statt eines flüchtigen PortAudio-Index. Sie ist beim ersten interaktiven Start sowie über `Start-ComputerFlow.ps1 -Microphone` verfügbar. WASAPI verwendet gemeinsame Formatkonvertierung für 16 kHz mono. Fehlende/doppelte gespeicherte Namen ergeben einen sichtbaren Auswahlfehler; es wird nicht heimlich auf ein anderes Mikrofon umgeschaltet. Windows-Standardgeräte bleiben unverändert.
+
+`platform.applications` ergänzt Fenstertitel um die zugehörige Prozessidentität und Produkt-/Dateibeschreibungen. Geläufige lokale Namen wie Editor/Notepad werden anhand des tatsächlichen Prozesses gebunden. Für bekannte Programme werden irreführende gemeinsame Framework-Metadaten nicht als Alias eines anderen Produktes übernommen. Metadaten sind pro Prozess/Snapshot bzw. ausführbarer Datei gecacht. Die Ausführung prüft weiterhin dieselbe konkrete Fenster-/Prozessidentität.
+
+Kurze explizite Medien-/Fokusformulierungen werden in `brain.commands` vor der freien Modellplanung typisiert. Insbesondere beide Wortstellungen „Pausiere Spotify“ und „Spotify, Pause“ bleiben Medienbefehle. Die freie Modellantwort darf ohne entsprechende Absicht keine Fokus-, Wiedergabe- oder Lautstärkeaktion auswählen. Unsichere Namensähnlichkeit liefert ausschließlich eine Rückfrage; sie führt keine Aktion aus.
+
+Die ASR bekommt bekannte Programmnamen als eng begrenzten Wortschatzhinweis im Erkennungsauftrag. Fenstertitel und Sitzungs-IDs werden nicht übertragen. Hinweistext wird nicht als zusätzlicher Text-Audio-Inhalt übergeben, weil der reale Modellversuch ihn sonst mittranskribierte. Die Konsole zeigt das Transkript als `Erkannt: …`, ohne es dauerhaft zu speichern. Die bisherige v2-Konfiguration wird beim Lesen auf den aktuellen Prompt v3 migriert.

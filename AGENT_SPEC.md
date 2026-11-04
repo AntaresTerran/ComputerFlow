@@ -1,12 +1,14 @@
 # ComputerFlow – Implementierungsspezifikation
 
-Beschlussstand: 3. November 2026. Verbindliche Zielarchitektur; noch keine implementierte Anwendung. Reihenfolge und Releasekriterien: [ROADMAP.md](ROADMAP.md). Beschlussübersicht: [PROJEKTENTSCHEIDUNGEN.md](PROJEKTENTSCHEIDUNGEN.md).
+Beschlussstand: 4. November 2026. Verbindliche Zielarchitektur. Aktueller Teilumfang und Prüfnachweise stehen im [README](README.md) und im [Prüfbericht](docs/VALIDATION.md). Meilensteine und Beschlüsse stehen in [ROADMAP.md](ROADMAP.md) und [PROJEKTENTSCHEIDUNGEN.md](PROJEKTENTSCHEIDUNGEN.md).
 
 ## 1. Leitlinien und Struktur
 
 Windows zuerst; gemeinsame Plattformverträge für späteres Linux/macOS. Lokal, private Nutzung und Open Source, MIT für Code und getrennte Modelllizenzen. Keine hardcodierten Rechner/Pfade/Geräte. PTT zuerst, Wake Word unmittelbar danach. Tests begleiten die Umsetzung; keine separate vorgelagerte Modelltestphase. Jeder Meilenstein liefert einen nutzbaren Durchstich.
 
 Geplante Paketbereiche: core (Konfiguration/Profile/Zustand), audio, vision, brain (Backend-/Modelladapter und Aktionsschema), actuator (Richtlinien/Ausführung/Prüfung), platform, integrations sowie panel (Server/Web/Tray/Setup). Tests liegen unter tests.
+
+ComputerFlow hält seine Konfiguration, eigenen Laufzeiten, Modelle, Profile, temporären Dateien und Caches im Programmordner. Die Vorgabe gilt für Entwicklung, bestehende Installationen und Release-Pakete. Maschinenspezifische Dateien bleiben außerhalb der Git-Versionierung.
 
 Plattformadapter kapseln Fenster, UI-Elemente/semantische Aktionen, Unicode-Text, Tastatur/Maus, Capture/DPI, Medien/Lautstärke und Berechtigungen. Nicht verfügbare Fähigkeiten sichtbar melden. Mock-Tests belegen keine reale Plattformunterstützung.
 
@@ -15,7 +17,7 @@ Plattformadapter kapseln Fenster, UI-Elemente/semantische Aktionen, Unicode-Text
 - Ein gemeinsamer Aufnahmeweg versorgt Ringbuffer, Wake Word und Auftragsaufnahme. Inferenz darf Audio und Not-Aus nicht blockieren.
 - PTT: rechte Strg-Taste halten; Loslassen startet Verarbeitung. Umschaltmodus sowie freie Tastatur-/Maustasten sind Alternativen.
 - Wake-Word-Adapter mit austauschbarer Modellquelle: zunächst vorhandenes „Computer“-Modell prüfen und verwenden. Kein mitgeliefertes openWakeWord-Standardmodell unterstellen.
-- Modellherkunft, Lizenz, Revision und Prüfsumme erfassen. Nutzermodelle und persönliche Stimmen außerhalb des Repos. Optionaler Verifier standardmäßig aus; keine Sicherheitsauthentifizierung.
+- Modellherkunft, Lizenz, Revision und Prüfsumme erfassen. Nutzermodelle und persönliche Stimmprofile im lokalen Programmdatenordner außerhalb der Git-Versionierung. Der optionale Verifier ist standardmäßig aus und ersetzt keine Aktionsfreigabe.
 - 16 kHz mono und zwei Sekunden Ringbuffer sind Ausgangswerte; Wake-Word-Schnitt/Pre-Roll müssen Satzanfänge erhalten.
 - Sprachende-Erkennung und Empfindlichkeit einstellbar, 1,2 Sekunden Stille vorläufiger Ausgangswert. Maximale Aufnahmedauer begrenzen.
 - Wake Word und PTT einzeln/gemeinsam nutzbar. Eigene Töne bei Audioverarbeitung berücksichtigen; eigene Sprachausgabe bleibt unterbrechbar.

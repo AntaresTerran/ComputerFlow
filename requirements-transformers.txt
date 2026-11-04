@@ -1,10 +1,3 @@
-# Optionaler alternativer Inferenzweg; nicht für den ersten llama.cpp-Client nötig.
-# Vorläufige Kandidaten, mit Modellrevision/Hardware bei Implementierung prüfen.
-# Ergänzend zu requirements.txt, später als optionales Extra samt Lockfile.
-torch>=2.2.0
-torchvision
-torchcodec
-transformers>=5.20.2
-accelerate>=0.28.0
-librosa
-soundfile
+# Für einen späteren alternativen Inferenzadapter reserviert.
+# 0.0.1 implementiert ausschließlich den lokalen llama.cpp-Client.
+# Noch keine getestete Transformers-Installation und kein entsprechendes Extra.
