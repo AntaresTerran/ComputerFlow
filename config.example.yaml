@@ -1,4 +1,4 @@
-# Unterstützte Konfiguration des Entwicklungsstands 0.0.2.
+# Unterstützte Konfiguration des Entwicklungsstands 0.0.3.
 # Kopieren nach config.yaml; mit --config config.yaml explizit laden.
 # Unbekannte Felder und noch nicht implementierte Funktionen werden zurückgewiesen.
 schema_version: 1
@@ -20,6 +20,7 @@ wake:
   model: null # Geprüftes Standardmodell; alternativ Vosk-Modellordner relativ zum Programmordner
   sensitivity: 0.65 # Höhere Werte erlauben unsicherere Wake-Treffer
   pre_roll_seconds: 2.0 # 2 bis 4 s RAM-Ringpuffer
+  command_start_seconds: 2.5 # Wartezeit für den Satzanfang ab Erkennung von „Computer“
   silence_seconds: 1.2 # Erlaubte Pause am Ende des Auftrags
   vad_mode: 2 # WebRTC VAD: 0–3, höhere Werte filtern stärker
   speech_stop: true # „Stopp“ oder „Abbrechen“ während Planung und Sprachausgabe
@@ -42,7 +43,7 @@ model:
   max_tokens: 512
   max_response_repairs: 1
   constrained_decoding: true # Bei nachgewiesener Backend-Inkompatibilität manuell false
-  prompt_version: v3
+  prompt_version: v4
 
 runtime:
   managed: true # Installation/Start von llama.cpp, Modell und Projektor gehören zum Projekt
@@ -56,4 +57,14 @@ execution:
   context_max_age_seconds: 90
   practice_mode: false # true: konkrete Aktion anzeigen und mit F6 freigeben
   confirmation_timeout_seconds: 30
+  voice_confirmation: false # Optional zusätzlich zu F6: „Computer bestätigen“
   emergency_hotkey: ctrl+alt+escape # Alternativ ctrl+alt+f12
+
+vision:
+  enabled: true
+  timing: on_demand # on_demand, on_wake, on_speech_end, both
+  monitor: null # Optional 1-basierter Monitor von links nach rechts, dann von oben nach unten
+  preview_ms: 650 # 0 deaktiviert die Markierung vor der Klickfreigabe
+  show_marks: false # Zeigt bei der Klickvorschau auch nummerierte Accessibility-Ziele
+  excluded_apps: [keepass, keepassxc, 1password, bitwarden, credentialuibroker]
+  excluded_titles: [] # Titel-Teilstrings. Ausschluss gilt für Aufnahme und UI-Bedienung.

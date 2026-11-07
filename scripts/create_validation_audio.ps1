@@ -23,6 +23,7 @@ $taskCases = @{
     'wake_only' = 'Computer.'
     'stop_short' = 'Stopp.'
     'stop_wake' = 'Computer, stopp.'
+    'confirm' = 'Computer bestätigen.'
     'negative' = 'Heute läuft wieder ein interessantes Konzert im Radio.'
     'negative_stop' = 'Ich habe gerade einen schönen Film gesehen.'
     'speaker_a' = 'Am frühen Morgen ist das Licht im Garten besonders schön. Viele Vögel singen, und die ersten Fenster gehen auf.'

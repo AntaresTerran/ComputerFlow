@@ -89,11 +89,14 @@ class Recorder:
         if notify:
             self.on_limit()
 
-    def begin(self, from_offset: int | None = None) -> int:
+    def begin(self, from_offset: int | None = None, *, required_from: int | None = None) -> int:
         with self._lock:
             self._data.clear()
             if from_offset is not None:
-                index = from_offset - (self._offset - len(self._ring))
+                oldest = self._offset - len(self._ring)
+                if required_from is not None and oldest <= required_from:
+                    from_offset = max(from_offset, oldest)
+                index = from_offset - oldest
                 if index < 0 or from_offset > self._offset:
                     raise ComputerFlowError("Satzanfang liegt außerhalb des Audiopuffers")
                 self._data.extend(self._ring[index:][: self._limit])

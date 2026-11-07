@@ -54,6 +54,9 @@ temp/
 screenshots/
 scratch/
 
+# Local code reviews
+code_reviews/
+
 # IDE & Editor files
 .vscode/
 .idea/

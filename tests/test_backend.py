@@ -1,6 +1,8 @@
 import asyncio
 import base64
+import io
 import json
+import time
 
 import httpx
 import pytest
@@ -9,8 +11,11 @@ from computerflow.app import Assistant
 from computerflow.audio.recorder import pcm_to_wav
 from computerflow.brain.llama_cpp import LlamaCppBackend
 from computerflow.core.config import Config, ModelConfig
+from computerflow.core.contracts import Ask, InspectUI
 from computerflow.core.errors import BackendError
 from computerflow.core.jobs import Job, State
+from computerflow.platform.contracts import ScreenSnapshot, Window
+from computerflow.platform.geometry import Rect
 
 
 def backend(handler, repairs=1):
@@ -42,7 +47,7 @@ async def test_audio_to_http_to_validated_execution_simulation(context, desktop)
         payload = json.loads(request.content)
         requests.append(payload)
         if payload["messages"][0]["content"] == "Perform ASR in German.":
-            return completion("Setze die Systemlautstärke auf 25 Prozent.")
+            return completion("Die Systemlautstärke soll bei 25 Prozent liegen.")
         return completion(
             json.dumps(
                 {
@@ -85,6 +90,107 @@ async def test_invalid_response_repaired_at_most_once(context):
         await model.plan("test", context, Job(5))
     assert len(calls) == 2
     await model.close()
+
+
+async def test_old_window_question_cannot_authorize_new_garbled_request(context, desktop):
+    requests = []
+
+    def respond(request):
+        requests.append(json.loads(request.content))
+        return completion('{"kind":"act","action":{"type":"focus_window","target":"Browser"}}')
+
+    model = backend(respond)
+    assistant = Assistant(Config(), model, desktop, lambda _: None)
+    try:
+        first = await assistant.run("Wechsle zu Home Assistant")
+        assert first.state == State.WAITING and "Home Assistant" in first.message
+        second = await assistant.run("Excellent Browser Stream of July.")
+        assert second.state == State.WAITING and "Home Assistant" not in second.message
+        assert not desktop.calls
+        assert len(requests) == 1 and "previous_question" not in str(requests[0])
+    finally:
+        await model.close()
+
+
+async def test_short_app_and_tab_reply_requires_an_observed_tab(context):
+    window = Window(id="app", pid=1, title="Overview", application="Werkzeug App")
+    context = context.model_copy(update={"windows": (window,)})
+    model = backend(lambda _: pytest.fail("short tab target should be resolved locally"))
+    try:
+        request = await model.plan("Werkzeug App Home Assistant", context, Job(5))
+        assert isinstance(request, InspectUI) and request.exact_tab
+        assert (request.operation, request.window, request.value) == (
+            "tab",
+            "Werkzeug App",
+            "Home Assistant",
+        )
+    finally:
+        await model.close()
+
+
+@pytest.mark.parametrize(
+    ("action", "selects_tab"),
+    [
+        ({"type": "select_tab", "target": "Berichte", "window": "Kalender"}, True),
+        ({"type": "select_tab", "target": "Unbenannt", "window": "Kalender"}, False),
+        ({"type": "focus_window", "target": "Kalender"}, False),
+    ],
+)
+async def test_model_tab_fallback_uses_spoken_names_and_cannot_focus_a_window(
+    context, action, selects_tab
+):
+    model = backend(lambda _: completion(json.dumps({"kind": "act", "action": action})))
+    try:
+        decision = await model.plan("Wechsle zu Berichte, dem Tab in Kalender.", context, Job(5))
+        if selects_tab:
+            assert isinstance(decision, InspectUI)
+            assert (decision.operation, decision.value, decision.window) == (
+                "tab",
+                "Berichte",
+                "Kalender",
+            )
+        else:
+            assert isinstance(decision, Ask)
+    finally:
+        await model.close()
+
+
+@pytest.mark.parametrize(
+    ("direction", "image_size", "point"),
+    [("horizontal", (200, 20), (401, 180)), ("vertical", (40, 100), (180, 401))],
+)
+async def test_tab_vision_crops_to_the_detected_axis_and_maps_to_original(
+    direction, image_size, point
+):
+    image = pytest.importorskip("PIL.Image")
+    png = io.BytesIO()
+    image.new("RGB", (200, 100)).save(png, format="PNG")
+    bounds = Rect(-400, -60, 400, 340)
+    screen = ScreenSnapshot(
+        "s", "w", "m", bounds, bounds, (200, 100), (0, 0), time.monotonic(), png.getvalue()
+    )
+    requests = []
+
+    def respond(request):
+        parts = json.loads(request.content)["messages"][1]["content"]
+        raw = base64.b64decode(parts[0]["image_url"]["url"].split(",", 1)[1])
+        with image.open(io.BytesIO(raw)) as sent:
+            requests.append(sent.size)
+        if len(requests) == 1:
+            return completion(
+                json.dumps(
+                    {"left": 100, "top": 100, "right": 300, "bottom": 300, "direction": direction}
+                )
+            )
+        return completion('{"x":400,"y":400,"mark":null}')
+
+    model = backend(respond)
+    try:
+        actual = await model.locate_tab("Berichte", screen, Job(5))
+        assert actual == point
+        assert requests == [(200, 100), image_size]
+    finally:
+        await model.close()
 
 
 async def test_truncated_but_parseable_response_is_not_executed(context, desktop):

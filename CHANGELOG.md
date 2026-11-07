@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.0.3 – 5. November 2026
+
+### Nachbesserungen vom 7. November 2026
+
+- Kurze Antworten auf Rückfragen werden im vorgesehenen Aktionstyp geprüft. Neue Aufträge starten mit eigenem Kontext.
+- Tab-Aufträge unterstützen gesprochene Varianten wie „Ich wechsle auf den Tab …“ und die Kurzform aus App und beobachtetem Tabtitel.
+- Klick- und Stream-Aufträge können zuerst zu einem eindeutigen Fenster oder Tab des genannten Dienstes wechseln. Ein visueller Treffer braucht eine Freigabe.
+- Chat-Aufträge erkennen den Zielzusatz auch nach dem Text. Ein führender Abbruch beendet die Aufnahmeverarbeitung. Der Wake-Word-Puffer darf den optionalen Vorlauf kürzen, wenn der Auftrag vollständig enthalten ist.
+
+### Nachbesserungen vom 6. November 2026
+
+- Tab-Aufträge trennen auch bei wechselnder Wortstellung den Tabtitel vom Programmnamen. Für visuelle Ziele grenzt das Modell zuerst die Tab-Leiste ein.
+- Chat-Aufträge trennen den Dienstnamen vom Entwurf. Geschrieben wird in ein fokussiertes und über Accessibility bestätigtes Nachrichtenfeld.
+- Die Wartezeit für den Beginn des Auftrags startet bei der erkannten Aktivierung, auch wenn das Wake Word mit Verzögerung erkannt wurde.
+- Der Schreibpfad unterstützt die Windows-Accessibility-Rolle „Dokument“ und behandelt Wendungen wie „im aktuellen Textfeld“ als Zielbeschreibung.
+- Benannte Registerkarten werden anhand ihrer Windows-Accessibility-Rolle und ihres Titels gesucht. Der visuelle Fallback arbeitet mit einem Fensterausschnitt und einer konkreten Klickfreigabe.
+- „Öffne …“ kann eine eindeutig im Windows-Anwendungskatalog registrierte App nach Freigabe starten. Folgeaktionen warten auf das nachgewiesene Zielfenster.
+- Ein TCP-Reset beim lokalen Modellzugriff wird als Verbindungsfehler gemeldet. Die Windows-CLI nutzt einen Ereignisloop ohne den fehlerhaften Proactor-Abbaupfad.
+
+### Erste Umsetzung
+
+- Windows UI Automation für benannte Elemente sowie Unicode-Eingabe mit Prüfung des aktiven Textfelds.
+- Bildkontext bei Bedarf oder zu konfigurierten Aufnahmezeitpunkten. Physische Monitorgrenzen, Ausschnitt, Mausposition und nummerierte Elemente sind an die Aufnahme gebunden.
+- Klickvorschau, konkrete Freigabe und begrenzte Aufträge mit mehreren einzeln geprüften Schritten.
+- Genaue und relative System-/App-Lautstärke, Browser-Grundbefehle und optionale Sprachfreigabe.
+- Deutscher Hörversuch mit der Sprachausgabe des vorhandenen Omni-Modells.
+
 ## 0.0.2 – 4. November 2026
 
 - „Computer“ mit vorhandenem deutschem Offline-Vosk-Modell, gemeinsamem Mikrofonpfad, RAM-Ringpuffer, einstellbarer Empfindlichkeit und Sprachende-Erkennung.

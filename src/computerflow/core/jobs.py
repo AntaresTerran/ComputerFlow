@@ -3,10 +3,13 @@ import time
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 from uuid import uuid4
 
 from computerflow.core.errors import Cancelled
+
+if TYPE_CHECKING:
+    from computerflow.platform.contracts import ScreenSnapshot
 
 T = TypeVar("T")
 
@@ -30,6 +33,7 @@ class Job:
     started: float = field(default_factory=time.monotonic)
     cancelled: asyncio.Event = field(default_factory=asyncio.Event)
     executed: list[str] = field(default_factory=list)
+    captures: dict[str, "ScreenSnapshot"] = field(default_factory=dict)
 
     def cancel(self) -> None:
         self.cancelled.set()

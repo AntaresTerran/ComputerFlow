@@ -7,13 +7,28 @@ from typing import Annotated, Literal
 from pydantic import Field, TypeAdapter
 
 from computerflow.core.config import StrictModel
-from computerflow.core.contracts import Act, Answer, Ask, FocusWindow, MediaControl, SetVolume, Stop
+from computerflow.core.contracts import (
+    Act,
+    Answer,
+    Ask,
+    FocusWindow,
+    InspectUI,
+    MediaControl,
+    SetVolume,
+    Stop,
+)
 from computerflow.platform.contracts import DesktopContext
 
 
 class FocusIntent(StrictModel):
     type: Literal["focus_window"]
     target: str = Field(min_length=1, max_length=256)
+
+
+class TabIntent(StrictModel):
+    type: Literal["select_tab"]
+    target: str = Field(min_length=1, max_length=150)
+    window: str | None = Field(min_length=1, max_length=120)
 
 
 class VolumeIntent(StrictModel):
@@ -29,16 +44,27 @@ class MediaIntent(StrictModel):
 
 class IntentAct(StrictModel):
     kind: Literal["act"]
-    action: Annotated[FocusIntent | VolumeIntent | MediaIntent, Field(discriminator="type")]
+    action: Annotated[
+        FocusIntent | TabIntent | VolumeIntent | MediaIntent, Field(discriminator="type")
+    ]
 
 
-Intent = Annotated[IntentAct | Ask | Answer | Stop, Field(discriminator="kind")]
+class IntentAsk(StrictModel):
+    kind: Literal["ask"]
+    question: str = Field(min_length=1, max_length=500)
+
+
+Intent = Annotated[IntentAct | IntentAsk | Answer | Stop, Field(discriminator="kind")]
 INTENT_ADAPTER = TypeAdapter(Intent)
 
 
 def normalized_name(value: str) -> str:
     # German ASR often splits compounds/app names: "Computer Flow Test Fenster".
     return re.sub(r"[\W_]", "", value.casefold())
+
+
+def name_words(value: str) -> str:
+    return " ".join(re.findall(r"[^\W_]+", value.casefold()))
 
 
 def app_name_prefix(target: str, label: str) -> bool:
@@ -62,6 +88,18 @@ def ground(intent: Intent, context: DesktopContext, command: str):
     if not isinstance(intent, IntentAct):
         return intent
     action = intent.action
+    if isinstance(action, TabIntent):
+        spoken = f" {name_words(command)} "
+        names = [action.target, action.window] if action.window else [action.target]
+        if any(not name_words(name) or f" {name_words(name)} " not in spoken for name in names):
+            return Ask(
+                kind="ask",
+                question="Wie heißt die gewünschte Registerkarte im Fenster?",
+                reply="tab",
+            )
+        return InspectUI(
+            kind="inspect_ui", operation="tab", value=action.target, window=action.window
+        )
     requested_target = getattr(action, "target", None)
     if requested_target and normalized_name(requested_target) not in normalized_name(command):
         return Ask(
@@ -111,12 +149,14 @@ def ground(intent: Intent, context: DesktopContext, command: str):
                 if suggestions:
                     return Ask(
                         kind="ask",
+                        reply="window",
                         question="Meinst du "
                         + ", ".join(f"„{name}“" for name in suggestions[:3])
                         + "? Sag bitte, welches Fenster oder welche Anwendung du meinst.",
                     )
             return Ask(
                 kind="ask",
+                reply="window",
                 question=(
                     f"Welches Fenster meinst du mit „{action.target}“? "
                     + (
@@ -164,6 +204,7 @@ def ground(intent: Intent, context: DesktopContext, command: str):
     if len(matches) != 1:
         return Ask(
             kind="ask",
+            reply=action.operation,
             question="Welche Anwendung soll ich abspielen oder pausieren? "
             "Das Wiedergabeziel ist nicht eindeutig verfügbar.",
         )

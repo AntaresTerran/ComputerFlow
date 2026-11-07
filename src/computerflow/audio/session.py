@@ -53,6 +53,7 @@ class VoiceSession:
         self._processing_since = 0.0
         self.timer: asyncio.TimerHandle | None = None
         self.wake_end: int | None = None
+        self.wake_wait_until = 0
         self.last_voice = 0
         self._voice_level = 0.0
         self.wake_command = False
@@ -77,7 +78,7 @@ class VoiceSession:
         if self.wake_end is None:
             self.finish()
 
-    def start(self, wake_end: int | None = None) -> None:
+    def start(self, wake_end: int | None = None, recognized_at: int | None = None) -> None:
         if self.recording or (self.task and not self.task.done()):
             return
         self.epoch += 1
@@ -85,18 +86,25 @@ class VoiceSession:
         self.wake_end = wake_end
         self.wake_command = False
         if wake_end is not None:
+            # Wake detection can arrive after the end of the actual keyword. Allow the
+            # user to start speaking after the audible activation cue in either case.
+            detected_at = wake_end if recognized_at is None else recognized_at
+            self.wake_wait_until = detected_at + round(
+                self.config.wake.command_start_seconds * BYTES_PER_SECOND
+            )
             # A little overlap protects the first phoneme after the keyword.
             lead_in = 0.65 if self.verifier else 0.08
             start = max(0, wake_end - round(16000 * lead_in) * 2)
         else:
             start = None
         try:
-            self.recorder.begin(start)
-        except ComputerFlowError as exc:
+            self.recorder.begin(start, required_from=wake_end if not self.verifier else None)
+        except ComputerFlowError:
             self.wake_end = None
-            self.status(str(exc))
+            self.status("Aktivierung kam zu spät. Sage „Computer“ und den Auftrag bitte erneut.")
             return
         self.recording = self.active_job = Job(self.config.execution.timeout_seconds)
+        self.assistant.capture_at("on_wake", self.recording)
         self.timer = self.loop.call_later(
             min(self.config.trigger.max_recording_seconds, self.recording.remaining), self.finish
         )
@@ -127,6 +135,7 @@ class VoiceSession:
             self.active_job = None
             self.status("Kein gesprochener Auftrag nach dem Aktivierungswort erkannt.")
             return
+        self.assistant.capture_at("on_speech_end", job)
         self._processing_since = time.perf_counter()
         self.task = asyncio.create_task(self._submit(pcm, job, wake_end is not None))
         self.task.add_done_callback(self._task_done)
@@ -175,6 +184,7 @@ class VoiceSession:
         self.feedback.interrupt()
         self.trigger.recording_finished()
         if self.recording:
+            self.recording.captures.clear()
             self.recording = None
             self.ducking.end()
         self.wake_end = None
@@ -186,6 +196,7 @@ class VoiceSession:
         vad = VoiceActivity(self.config.wake.vad_mode)
         silence = int(self.config.wake.silence_seconds * BYTES_PER_SECOND)
         previous_epoch = self.epoch
+        confirmation_cutoff = 0
         while True:
             pcm, offset, gap, captured_at = await self.frames.get()
             stale = time.perf_counter() - captured_at > 0.8
@@ -198,6 +209,8 @@ class VoiceSession:
                     continue
             end = offset + len(pcm)
             own_audio = self.feedback.own_audio(captured_at)
+            if own_audio or captured_at <= self.assistant.confirmation_started:
+                confirmation_cutoff = end
             if self.wake_end is not None:
                 if (
                     not own_audio
@@ -206,7 +219,9 @@ class VoiceSession:
                 ):
                     self.last_voice = end
                     self.wake_command = True
-                if end - max(self.last_voice, self.wake_end) >= silence:
+                if self.wake_command and end - self.last_voice >= silence:
+                    self.finish()
+                elif not self.wake_command and end >= self.wake_wait_until:
                     self.finish()
                 continue
             processing = self.task is not None and not self.task.done()
@@ -224,18 +239,35 @@ class VoiceSession:
                 self.source.reset()
                 continue
             epoch = self.epoch
+            confirmation = self.assistant.pending_confirmation
             try:
                 detection = await asyncio.to_thread(self.source.feed, pcm, offset, purpose)
             except Exception as exc:
                 raise ComputerFlowError("Lokaler Wake-/Stopp-Erkenner ausgefallen") from exc
             if detection is None or epoch != self.epoch:
                 continue
+            if time.perf_counter() - captured_at > 0.8:
+                self.source.reset()
+                continue
             if purpose == "stop":
-                self.status("Sprachstopp erkannt")
-                self.cancel()
+                if detection.confirmation:
+                    if (
+                        self.config.execution.voice_confirmation
+                        and confirmation is not None
+                        and confirmation == self.assistant.pending_confirmation
+                        and captured_at > self.assistant.confirmation_started
+                        and detection.start is not None
+                        and detection.start >= confirmation_cutoff
+                        and not own_audio
+                    ):
+                        self.status("Sprachfreigabe erkannt")
+                        self._confirm()
+                else:
+                    self.status("Sprachstopp erkannt")
+                    self.cancel()
             else:
                 last_voice = self.last_voice
-                self.start(min(detection.end, end))
+                self.start(min(detection.end, end), recognized_at=end)
                 if self.wake_end is not None and last_voice - self.wake_end >= 6400:
                     self.wake_command = True
                     self.last_voice = last_voice
@@ -272,7 +304,7 @@ class VoiceSession:
                 "Bereit: "
                 + ", ".join(enabled)
                 + f". Not-Aus {self.config.execution.emergency_hotkey}, "
-                "F6 Übungsfreigabe, Strg+C beendet."
+                "F6 Freigabe, Strg+C beendet."
             )
             if self.source:
                 await self._listen_voice()

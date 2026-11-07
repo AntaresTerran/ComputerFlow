@@ -30,7 +30,16 @@ def recognizer(text, finish="stop"):
     return LlamaCppBackend(ModelConfig(), client), requests
 
 
-@pytest.mark.parametrize("word", ["abbrechen", "Abbrechen.", "Computer, stopp!", "Stopp"])
+@pytest.mark.parametrize(
+    "word",
+    [
+        "abbrechen",
+        "Abbrechen.",
+        "Computer, stopp!",
+        "Stopp",
+        "Abrechen. Computer, schreibe Hey im Twitch-Stream.",
+    ],
+)
 async def test_recognized_stop_never_enters_action_planning(word, context):
     backend, requests = recognizer(word)
     result = await backend.plan(b"synthetic-wav", context, Job(5))

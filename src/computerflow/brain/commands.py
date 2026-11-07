@@ -4,10 +4,22 @@ import re
 
 from computerflow.brain.grounding import FocusIntent, IntentAct, MediaIntent
 
+SWITCH_VERB = r"(?:wechsel[ent]?|wechsele|wechsle)"
+
+
+def command_body(command: str) -> str:
+    text = re.sub(r"^computer\s*[,!:]?\s+", "", command.strip(), flags=re.I)
+    return re.sub(r"^(?:(?:dann|bitte|ich)\s+)+", "", text, flags=re.I)
+
+
+def is_stop_request(command: str) -> bool:
+    return bool(
+        re.match(r"^(?:stopp?|abbrechen|abrechen)(?:\s*[.!?;,:]|\s*$)", command_body(command), re.I)
+    )
+
 
 def parse_explicit_command(command: str):
-    text = re.sub(r"^computer\s*[,!:]?\s+", "", command.strip(), flags=re.I).rstrip(".!? ")
-    text = re.sub(r"^bitte\s+|\s+bitte$", "", text, flags=re.I)
+    text = re.sub(r"\s+bitte$", "", command_body(command).rstrip(".!? "), flags=re.I)
     if re.search(r"\b(?:nicht|kein|keine|keinen|never|don't)\b", text, re.I):
         return None
     media_patterns = (
@@ -41,7 +53,7 @@ def parse_explicit_command(command: str):
                 ),
             )
     focus = re.fullmatch(
-        r"(?:wechsle|wechsel|wechsele|fokussiere|aktiviere|zeige)\s+(?:bitte\s+)?"
+        rf"(?:{SWITCH_VERB}|fokussiere|aktiviere|zeige)\s+(?:bitte\s+)?"
         r"(?:(?:zu|zum|zur|auf|in)\s+)?(?:(?:das|die|den|der|dem)\s+)?"
         r"(?:(?:fenster|app|anwendung|programm)\s+(?:von\s+)?)?(?P<target>.+)",
         text,
@@ -78,6 +90,4 @@ def has_media_request(command: str, operation: str) -> bool:
 
 
 def has_volume_request(command: str) -> bool:
-    return bool(
-        re.search(r"\b(?:lautstärk\w*|lauter|leiser|prozent|volume|stumm)\b|%", command, re.I)
-    )
+    return bool(re.search(r"\b(?:\w*lautstärk\w*|lauter|leiser|volume|stumm)\b", command, re.I))

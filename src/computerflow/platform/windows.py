@@ -13,15 +13,36 @@ from uuid import uuid4
 
 import psutil
 
-from computerflow.core.contracts import Action, FocusWindow, MediaControl, SetVolume
+from computerflow.brain.desktop import matching_app_windows
+from computerflow.core.config import VisionConfig
+from computerflow.core.contracts import (
+    Action,
+    BrowserKey,
+    FocusWindow,
+    LaunchApplication,
+    MediaControl,
+    SetAppVolume,
+    SetVolume,
+    UIElementAction,
+    VisualClick,
+    WriteText,
+)
 from computerflow.core.errors import ComputerFlowError, PlatformError
 from computerflow.core.jobs import Job, State
 from computerflow.platform.applications import ApplicationInfo, application_info, version_labels
-from computerflow.platform.contracts import ActionResult, DesktopContext, MediaSession, Window
+from computerflow.platform.contracts import (
+    ActionResult,
+    AudioSession,
+    DesktopContext,
+    MediaSession,
+    Window,
+)
+from computerflow.platform.win_apps import WindowsApps, package_app_id
+from computerflow.platform.win_desktop import WindowsDesktopUI
 
 
 class WindowsPlatform:
-    def __init__(self):
+    def __init__(self, vision: VisionConfig | None = None):
         if sys.platform != "win32":
             raise PlatformError("Reale Desktopaktionen sind nur auf Windows verfügbar")
         # WinRT callbacks need MTA when the CLI does not run an STA message pump.
@@ -62,6 +83,34 @@ class WindowsPlatform:
         self._media_targets: dict[str, tuple[str, object]] = {}
         self._media_context_id: str | None = None
         self._applications: dict[int, ApplicationInfo] = {}
+        self._audio_targets = {}
+        self._audio_context_id = None
+        self.ui = WindowsDesktopUI(self, vision or VisionConfig())
+        self._apps = None
+
+    async def inspect_ui(self, window_id, job):
+        return await self.ui.inspect(window_id, job)
+
+    async def inspect_tabs(self, window_id, job):
+        return await self.ui.inspect_tabs(window_id, job)
+
+    @property
+    def apps(self):
+        if self._apps is None:
+            self._apps = WindowsApps()
+        return self._apps
+
+    async def registered_apps(self, job):
+        return tuple(app for app, _ in self.apps.entries(job))
+
+    def capture(self, window_id, *, at_cursor=False, ui=None):
+        return self.ui.capture(window_id, at_cursor=at_cursor, ui=ui)
+
+    def manual_capture(self):
+        return self.ui.manual_capture()
+
+    async def preview_action(self, action, context, job):
+        await self.ui.preview_action(action, context, job)
 
     def _application(self, pid: int) -> ApplicationInfo:
         if pid not in self._applications:
@@ -136,6 +185,37 @@ class WindowsPlatform:
         status = int(session.get_playback_info().playback_status)
         return {4: "playing", 5: "paused"}.get(status, "other")
 
+    @staticmethod
+    def _volume_sessions():
+        from pycaw.pycaw import AudioUtilities
+
+        return AudioUtilities.GetAllSessions()
+
+    def _audio_sessions(self):
+        self._audio_targets.clear()
+        result = []
+        for session in self._volume_sessions():
+            try:
+                if not session.ProcessId or int(session.State) == 2:
+                    continue
+                app = self._application(session.ProcessId)
+                instance = session.InstanceIdentifier
+                if not app.name or not instance:
+                    continue
+                ref = uuid4().hex
+                self._audio_targets[ref] = (session.ProcessId, instance)
+                result.append(
+                    AudioSession(
+                        id=ref,
+                        app=app.name,
+                        aliases=app.aliases,
+                        level=round(session.SimpleAudioVolume.GetMasterVolume() * 100),
+                    )
+                )
+            except Exception:
+                continue
+        return tuple(result)
+
     async def snapshot(self) -> DesktopContext:
         # Capture timestamp and foreground BEFORE async capability probes.
         captured_at = time.monotonic()
@@ -152,6 +232,12 @@ class WindowsPlatform:
             unavailable.append(
                 "Systemlautstärke nicht verfügbar (Desktop-Extra/Ausgabegerät prüfen)"
             )
+        audio = ()
+        if device_id:
+            try:
+                audio = self._audio_sessions()
+            except Exception:
+                unavailable.append("App-Lautstärke nicht verfügbar")
         media = []
         self._media_targets.clear()
         try:
@@ -198,9 +284,11 @@ class WindowsPlatform:
             media_sessions=tuple(media),
             volume_device_id=device_id,
             volume=volume,
+            audio_sessions=audio,
             unavailable=tuple(unavailable),
         )
         self._media_context_id = context.id
+        self._audio_context_id = context.id
         return context
 
     def _check_foreground(self, context: DesktopContext, job: Job) -> None:
@@ -213,6 +301,8 @@ class WindowsPlatform:
         try:
             if isinstance(action, FocusWindow):
                 return await self._focus(action, context, job)
+            if isinstance(action, LaunchApplication):
+                return await self._launch_application(context, job)
             if isinstance(action, SetVolume):
                 device = self._speakers()
                 if device.id != action.device_id:
@@ -232,6 +322,10 @@ class WindowsPlatform:
                 )
             if isinstance(action, MediaControl):
                 return await self._media(action, context, job)
+            if isinstance(action, SetAppVolume):
+                return self._set_app_volume(action, context, job)
+            if isinstance(action, (UIElementAction, WriteText, BrowserKey, VisualClick)):
+                return await self.ui.execute(action, context, job)
             raise PlatformError("Nicht unterstützte Windows-Aktion")
         except (ComputerFlowError, asyncio.CancelledError):
             raise
@@ -255,6 +349,19 @@ class WindowsPlatform:
         if self.user32.IsIconic(hwnd):
             self.user32.ShowWindowAsync(hwnd, 9)  # SW_RESTORE, non-blocking
             job.executed.append("restore_window")
+            for _ in range(8):
+                job.check()
+                if self.foreground_id() == target.id:
+                    return ActionResult(
+                        verified=True, message="Fenster wiederhergestellt und aktiv"
+                    )
+                self._check_foreground(context, job)
+                if not self.user32.IsIconic(hwnd):
+                    break
+                await asyncio.sleep(0.04)
+            else:
+                raise PlatformError("Fenster konnte nicht wiederhergestellt werden")
+        self._check_foreground(context, job)
         job.check()
         accepted = self.user32.SetForegroundWindow(hwnd)
         job.executed.append(action.type)
@@ -269,6 +376,82 @@ class WindowsPlatform:
             message="Fensterfokus nicht bestätigt; Windows kann den Fokuswechsel sperren"
             if not accepted
             else "Fensterfokus nach Aktion nicht bestätigt",
+        )
+
+    async def _launch_application(self, context, job):
+        registration = context.launch_target
+
+        def matches(window):
+            if "!" in registration.id:
+                return package_app_id(window.pid).casefold() == registration.id.casefold()
+            return bool(matching_app_windows((window,), registration.name))
+
+        before = {window.id for window in self.windows()}
+        if any(matches(window) for window in self.windows()):
+            raise PlatformError(
+                "Die Anwendung ist inzwischen geöffnet. Bitte nenne den Auftrag erneut."
+            )
+        self.apps.launch(registration, job, lambda: self._check_foreground(context, job))
+        job.executed.append("launch_application")
+        job.state = State.VERIFYING
+        deadline = time.monotonic() + 6
+        attempted = False
+        while time.monotonic() < deadline:
+            job.check()
+            foreground = self._window(self.user32.GetForegroundWindow())
+            if foreground and foreground.id not in before and matches(foreground):
+                return ActionResult(
+                    verified=True,
+                    message=f"{registration.name} geöffnet und aktiv",
+                    foreground_id=foreground.id,
+                )
+            if foreground and foreground.id != context.foreground_id:
+                raise PlatformError(
+                    "Vordergrund hat sich beim Programmstart geändert. Auftrag angehalten."
+                )
+            if not attempted:
+                launched = [
+                    window
+                    for window in self.windows()
+                    if window.id not in before and matches(window)
+                ]
+                if len(launched) == 1:
+                    job.check()
+                    self.user32.SetForegroundWindow(int(launched[0].id.split(":", 1)[0], 16))
+                    attempted = True
+            await asyncio.sleep(0.1)
+        return ActionResult(
+            verified=False,
+            message=f"Start von {registration.name} angefordert. Bitte aktiviere das Zielfenster.",
+        )
+
+    def _set_app_volume(self, action, context, job):
+        identity = self._audio_targets.get(action.session_id)
+        if (
+            not identity
+            or context.id != self._audio_context_id
+            or self._speakers().id != context.volume_device_id
+        ):
+            raise PlatformError("App-Wiedergabesitzung oder Ausgabegerät hat sich geändert")
+        matches = [
+            s
+            for s in self._volume_sessions()
+            if (s.ProcessId, s.InstanceIdentifier) == identity and int(s.State) != 2
+        ]
+        if len(matches) != 1:
+            raise PlatformError("App-Wiedergabesitzung ist nicht mehr eindeutig verfügbar")
+        self._check_foreground(context, job)
+        control = matches[0].SimpleAudioVolume
+        control.SetMasterVolume(action.level / 100, None)
+        job.executed.append(action.type)
+        job.state = State.VERIFYING
+        actual = control.GetMasterVolume() * 100
+        okay = abs(actual - action.level) <= 0.6 and self._speakers().id == context.volume_device_id
+        return ActionResult(
+            verified=okay,
+            message=f"App-Lautstärke geprüft: {round(actual)} %"
+            if okay
+            else "App-Lautstärke konnte nicht bestätigt werden",
         )
 
     async def _media(

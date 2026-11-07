@@ -60,6 +60,7 @@ class WakeConfig(StrictModel):
     model: str | None = None  # Relative to the program directory.
     sensitivity: float = Field(default=0.65, ge=0.1, le=0.95)
     pre_roll_seconds: float = Field(default=2.0, ge=2.0, le=4.0)
+    command_start_seconds: float = Field(default=2.5, ge=1.0, le=8.0)
     silence_seconds: float = Field(default=1.2, ge=0.4, le=3.0)
     vad_mode: int = Field(default=2, ge=0, le=3)
     speech_stop: bool = True
@@ -85,7 +86,7 @@ class ModelConfig(StrictModel):
     max_tokens: int = Field(default=512, ge=64, le=2048)
     max_response_repairs: int = Field(default=1, ge=0, le=1)
     constrained_decoding: bool = True
-    prompt_version: Literal["v3"] = "v3"
+    prompt_version: Literal["v4"] = "v4"
 
     @field_validator("endpoint")
     @classmethod
@@ -114,7 +115,35 @@ class ExecutionConfig(StrictModel):
     context_max_age_seconds: int = Field(default=90, ge=5, le=300)
     practice_mode: bool = False
     confirmation_timeout_seconds: int = Field(default=30, ge=5, le=60)
+    voice_confirmation: bool = False
     emergency_hotkey: Literal["ctrl+alt+escape", "ctrl+alt+f12"] = "ctrl+alt+escape"
+
+
+class VisionConfig(StrictModel):
+    enabled: bool = True
+    timing: Literal["on_demand", "on_wake", "on_speech_end", "both"] = "on_demand"
+    monitor: int | None = Field(default=None, ge=1, le=32)
+    preview_ms: int = Field(default=650, ge=0, le=2500)
+    show_marks: bool = False
+    excluded_apps: tuple[str, ...] = (
+        "keepass",
+        "keepassxc",
+        "1password",
+        "bitwarden",
+        "credentialuibroker",
+    )
+    excluded_titles: tuple[str, ...] = ()
+
+    @field_validator("excluded_apps", "excluded_titles", mode="before")
+    @classmethod
+    def exclusion_patterns(cls, values):
+        if not isinstance(values, (list, tuple)) or len(values) > 64:
+            raise ValueError("Erwarte bis zu 64 Ausschlüsse")
+        if any(
+            not isinstance(value, str) or not 1 <= len(value.strip()) <= 128 for value in values
+        ):
+            raise ValueError("Ausschlüsse dürfen nicht leer sein")
+        return tuple(value.strip() for value in values)
 
 
 class RuntimeConfig(StrictModel):
@@ -132,6 +161,7 @@ class Config(StrictModel):
     feedback: FeedbackConfig = Field(default_factory=FeedbackConfig)
     model: ModelConfig = Field(default_factory=ModelConfig)
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
+    vision: VisionConfig = Field(default_factory=VisionConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
 
     @model_validator(mode="after")
@@ -140,6 +170,8 @@ class Config(StrictModel):
             raise ValueError("PTT oder Wake Word muss aktiviert sein")
         if self.wake.verify_speaker and not self.wake.enabled:
             raise ValueError("Stimmprüfung erfordert Wake Word")
+        if self.execution.voice_confirmation and not self.wake.speech_stop:
+            raise ValueError("Sprachfreigabe benötigt die lokale Stopp-Erkennung")
         if self.execution.emergency_hotkey.endswith("f12") and self.trigger.key in {
             "f12",
             "vk:123",
@@ -185,8 +217,8 @@ def load_config(path: Path | None = None) -> Config:
             raise ComputerFlowError("Konfigurationsdatei ist größer als 64 KiB")
         raw = yaml.load(selected.read_text(encoding="utf-8"), Loader=ConfigLoader)
         if isinstance(raw, dict) and isinstance(raw.get("model"), dict):
-            if raw["model"].get("prompt_version") == "v2":
-                raw["model"]["prompt_version"] = "v3"
+            if raw["model"].get("prompt_version") in ("v2", "v3"):
+                raw["model"]["prompt_version"] = "v4"
         return Config.model_validate(raw)
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise ComputerFlowError("Konfiguration konnte nicht gelesen werden") from exc

@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from computerflow.core.contracts import Decision
+from computerflow.core.contracts import Ask, Decision
 from computerflow.core.jobs import Job
 from computerflow.platform.contracts import DesktopContext
 
@@ -11,5 +11,5 @@ class InferenceBackend(Protocol):
         command: str | bytes,
         context: DesktopContext,
         job: Job,
-        clarification: str | None = None,
+        clarification: Ask | None = None,
     ) -> Decision: ...

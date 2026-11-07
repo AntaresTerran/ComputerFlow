@@ -4,15 +4,18 @@ Ein lokaler Sprach- und Bildschirmassistent für den Desktop im frühen Entwickl
 
 > „Computer, wechsle auf den Twitch-Tab von Papaplatte.“
 
-**Stand 0.0.2.** Der experimentelle Windows-x64-Stand ergänzt die ersten geprüften Desktopaktionen um freihändige Sprachsteuerung. Nachweise und Grenzen stehen im [Prüfbericht](docs/VALIDATION.md).
+**Stand 0.0.3.** ComputerFlow kann Windows-Oberflächen über Accessibility und bei Bedarf über einen Bildausschnitt bedienen. Nachweise und Grenzen stehen im [Prüfbericht](docs/VALIDATION.md).
 
-## Implementiert für 0.0.2
+## Implementiert für 0.0.3
 
 - „Computer“ und Auftrag in einem Satz sprechen. Ein RAM-Ringpuffer hält den Satzanfang vor. Empfindlichkeit und Sprachende sind einstellbar.
 - PTT mit rechter Strg-Taste halten und loslassen. Tastatur- und Maustasten sowie Umschaltmodus sind konfigurierbar. PTT und Wake Word lassen sich einzeln oder gemeinsam aktivieren.
 - „Stopp“ oder „Abbrechen“ unterbricht einen laufenden Auftrag oder die Sprachausgabe. Kurze Töne markieren Aktivierung und einfache Erfolge. Rückfragen, Übungsfreigaben und Fehler spricht die lokale deutsche Windows-Stimme.
 - Freiwillige, löschbare Stimmprüfung für Wake-Aufträge und optionale vorübergehende Lautstärkeabsenkung anderer Wiedergabequellen.
-- Ein Auftrag führt höchstens eine Aktion aus: sichtbares Fenster fokussieren, Systemlautstärke auf 0–100 % setzen oder eine eindeutig adressierte Windows-Mediensitzung abspielen/pausieren.
+- Direkte Fenster-, Medien- und Lautstärkeaktionen. Systemlautstärke und einzelne Windows-Wiedergabesitzungen sind in Prozent oder relativ in Prozentpunkten einstellbar.
+- Bedienung sichtbarer Elemente über Windows UI Automation, Eingabe von Unicode in ein nachweisbar aktives Textfeld und geprüfte Browser-Tastenkombinationen.
+- Visuelle Zielsuche und Klick am Mauszeiger. Zielvorschau, konkrete Freigabe und Prüfung des sichtbaren Zielbereichs. Bildschirmkontext wird im Standardfall nur bei Bedarf erfasst.
+- Bis zu drei Schritte mit frischer Zielprüfung nach jedem erfolgreichen Schritt. F6 gibt eine konkrete Aktion frei. Die optionale Sprachfreigabe muss in `execution.voice_confirmation` aktiviert werden.
 - Lokale Audio-/Textaufträge über llama.cpp: offizielle ASR-Aufgabe, danach schemaerzwungene Aktionsplanung. Zielnamen werden unabhängig vom Modell eindeutig an den aktuellen Kontext gebunden. Strikte Validierung, höchstens eine Formatkorrektur, kein Mock-Modus im Produkt.
 - Eigene Serververwaltung: fest versionierte Downloads mit SHA-256-Prüfung, fortsetzbare Downloads, Vulkan-Geräteprüfung, sichtbarer CPU-Fallback und Start/Status/Stop. Standard: `127.0.0.1:47831`, zufälliger API-Schlüssel, keine Shell-Tools im Modellserver.
 - Unabhängiger Not-Aus **Strg+Alt+Escape**, Auftragsdeadline, Verwerfen verspäteter Antworten und Unterbrechung bei Vordergrundwechsel während Planung/Freigabe. **Strg+C** beendet das Programm.
@@ -23,7 +26,21 @@ Ein lokaler Sprach- und Bildschirmassistent für den Desktop im frühen Entwickl
 
 Windows kann Fokuswechsel aus Hintergrundprozessen sperren. In diesem Fall meldet ComputerFlow den Wechsel als nicht bestätigt; globale Windows-Fokuseinstellungen werden nicht verändert.
 
-Screenshots, UI-Bedienung, Tray, Web-Panel, Installer und weitere Plattformadapter folgen den späteren Meilensteinen.
+Tray, Web-Panel, der Windows-Installer und weitere Plattformadapter folgen in späteren Meilensteinen.
+
+### Beispiele für Desktop-Aufträge
+
+- „Computer, setze die Lautstärke von Spotify auf 25 Prozent“ oder „Computer, senke die Systemlautstärke um fünf Prozentpunkte“.
+- „Computer, klicke auf Einstellungen“. Wenn das Element über Accessibility verfügbar ist, wird es dort aufgelöst. Bei einem Bildziel zeigt ComputerFlow den Klickpunkt vor der Freigabe. Mit „Klick hier“ kannst du ein Ziel über den Mauszeiger bezeichnen.
+- „Computer, schreibe im aktuellen Textfeld Grüße aus Köln“. Der Text geht in ein von Windows als bearbeitbar gemeldetes Feld. ComputerFlow prüft den Fokus und kann ein eindeutig bestimmbares Feld zuerst fokussieren.
+- „Computer, öffne den Editor und schreibe Grüße aus Köln“. ComputerFlow verwendet ein passendes geöffnetes Fenster. Für den Start einer registrierten App bittet es um F6 und prüft den Vordergrund vor dem Folgeschritt.
+- „Computer, wechsle auf den Home Assistant Tab von Firefox“. ComputerFlow sucht in der genannten App nach der Registerkarte. Beim visuellen Fallback grenzt es die Tab-Leiste ein und zeigt den Klickpunkt zur Freigabe an.
+- „Computer, Firefox Home Assistant“. Diese Kurzform verwendet einen eindeutig von Windows gemeldeten Tabtitel. Mit „Klicke in … auf …“ lässt sich ein Klick auf die genannte App oder den benannten Dienst eingrenzen.
+- „Computer, schreibe in den Twitch-Chat Hi“. Setze den Cursor ins Nachrichtenfeld des aktiven Chats. ComputerFlow prüft das Feld über Accessibility und fügt den Text als Entwurf ein.
+- „Computer, wechsle den Twitch-Stream auf Harmony“. ComputerFlow sucht nach einer bereits offenen Registerkarte mit Stream- und Dienstnamen oder schlägt ein sichtbares Klickziel im passenden Fenster vor.
+- „Computer, wechsle zu Firefox und fokussiere die Adressleiste“. Browser-Grundaktionen funktionieren über den aktiven Browser. Die optionale Firefox-Erweiterung in 0.0.4 soll zusätzliche Informationen zu Tabs und Browserprofilen liefern.
+
+Aufnahmen bleiben im RAM und werden auf den sichtbaren Monitorabschnitt des aktiven Fensters begrenzt. Mit `vision.excluded_apps` und `vision.excluded_titles` lassen sich Oberflächen ausnehmen. Überschneidet sich der Ausschnitt mit einem ausgeschlossenen Fenster, verweigert ComputerFlow die Aufnahme. Die Klickvorschau lässt sich über `vision.preview_ms` einstellen oder ausschalten. Allgemeine Tastenkombinationen und automatisierte Eingaben in erkannte Shell-Oberflächen sind gesperrt.
 
 ## Ziel und Arbeitsweise
 

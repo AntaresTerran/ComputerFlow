@@ -1,6 +1,6 @@
 # ComputerFlow – Roadmap
 
-Planungsstand 4. November 2026. **Aktueller Entwicklungsstand 0.0.2.** Nachweise und Grenzen stehen im [Prüfbericht](docs/VALIDATION.md).
+Planungsstand 5. November 2026. **Aktueller Entwicklungsstand 0.0.3.** Nachweise und Grenzen stehen im [Prüfbericht](docs/VALIDATION.md).
 
 ## Leitlinien
 

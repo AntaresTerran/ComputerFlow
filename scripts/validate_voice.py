@@ -120,6 +120,11 @@ async def run():
         for name, sound, expected in (
             ("joined", pcm("wake_joined"), "focus_window"),
             (
+                "after activation",
+                pcm("wake_only") + bytes(32000) + pcm("editor_name"),
+                "focus_window",
+            ),
+            (
                 "music",
                 mix(volume_with_tail, melody(len(volume_with_tail) // 2)),
                 "set_volume",
@@ -145,7 +150,7 @@ async def run():
             worker = asyncio.create_task(session._listen_voice())
             try:
                 started = time.monotonic()
-                await stream(session, sound + bytes(64000))
+                await stream(session, sound + bytes(96000 if expected is None else 64000))
                 if expected:
                     assert session.task is not None, name
                     await asyncio.wait_for(session.task, 15)
@@ -155,7 +160,9 @@ async def run():
                         assert probe.decision.action.level == 50, probe.decision
                     assert assistant.history[-1].state == State.DONE
                 else:
-                    assert session.task is None and not assistant.history
+                    assert (
+                        session.task is None and session.recording is None and not assistant.history
+                    )
                 print(f"{name}: passed in {time.monotonic() - started:.2f} s", flush=True)
             finally:
                 worker.cancel()

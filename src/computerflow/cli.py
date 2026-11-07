@@ -37,10 +37,19 @@ def console(message: str) -> None:
     print(safe, flush=True)
 
 
-def desktop_platform():
+def run_cli(coroutine):
+    if sys.platform != "win32":
+        return asyncio.run(coroutine)
+    # The CLI uses sockets and worker threads. The selector avoids the Windows
+    # proactor's shutdown callback, which can raise after a TCP reset on cleanup.
+    with asyncio.Runner(loop_factory=asyncio.SelectorEventLoop) as runner:
+        return runner.run(coroutine)
+
+
+def desktop_platform(config: Config):
     from computerflow.platform.windows import WindowsPlatform
 
-    return WindowsPlatform()
+    return WindowsPlatform(config.vision)
 
 
 def package_versions() -> dict:
@@ -78,11 +87,15 @@ async def diagnose(config: Config, offline: bool) -> int:
     else:
         report["trigger"] = "pynput installiert; Hook wird erst bei listen/command geöffnet"
     if sys.platform == "win32":
-        context = await desktop_platform().snapshot()
+        desktop = desktop_platform(config)
+        context = await desktop.snapshot()
         report["desktop"] = {
             "windows_available": bool(context.windows),
             "volume_available": context.volume is not None,
             "media_sessions_available": len(context.media_sessions),
+            "app_volume_sessions": len(context.audio_sessions),
+            "monitors": len(desktop.ui.screen.monitors()),
+            "capture": config.vision.timing if config.vision.enabled else False,
             "unavailable": context.unavailable,
         }
     try:
@@ -119,7 +132,7 @@ async def diagnose(config: Config, offline: bool) -> int:
 
 
 async def run_assistant(config: Config, args: argparse.Namespace) -> int:
-    desktop = desktop_platform()
+    desktop = desktop_platform(config)
     managed = ManagedRuntime(config, console)
     state = await asyncio.to_thread(managed.start) if config.runtime.managed else None
     backend = LlamaCppBackend(
@@ -151,7 +164,7 @@ async def run_assistant(config: Config, args: argparse.Namespace) -> int:
             lambda: loop.call_soon_threadsafe(assistant.confirm),
         )
         trigger.open()
-        console(f"Not-Aus {config.execution.emergency_hotkey}; F6 Übungsfreigabe")
+        console(f"Not-Aus {config.execution.emergency_hotkey}; F6 Freigabe")
         entry = await assistant.run(args.text)
         if args.json:
             print(json.dumps(asdict(entry), ensure_ascii=True))
@@ -253,8 +266,8 @@ def main(argv: list[str] | None = None) -> int:
                     "Audiogeräte nicht lesbar; Desktop-Extra installieren"
                 ) from exc
         if args.action == "doctor":
-            return asyncio.run(diagnose(config, args.offline))
-        return asyncio.run(run_assistant(config, args))
+            return run_cli(diagnose(config, args.offline))
+        return run_cli(run_assistant(config, args))
     except ComputerFlowError as exc:
         console(f"Fehler: {exc}")
         return 1

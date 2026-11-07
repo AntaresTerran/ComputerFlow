@@ -61,6 +61,17 @@ def test_ring_preloads_speech_after_the_keyword_once():
         recorder.begin(len(prefix))
 
 
+def test_ring_can_skip_lost_overlap_but_keeps_entire_command():
+    recorder = Recorder(TriggerConfig(), lambda: None, lambda *_: None, 2)
+    prefix = b"\0" * 3200
+    command = b"\1\0" * 32000
+    recorder._callback(prefix + command, (len(prefix) + len(command)) // 2, None, False)
+    recorder.begin(len(prefix) - 1280, required_from=len(prefix))
+    assert recorder.finish_pcm() == command
+    with pytest.raises(ComputerFlowError, match="Audiopuffer"):
+        recorder.begin(0, required_from=len(prefix) - 2)
+
+
 def test_portaudio_errors_are_reported_without_raw_exception(monkeypatch):
     class PortAudioError(Exception):
         pass

@@ -37,7 +37,7 @@ async def test_clarification_does_not_execute_and_is_passed_to_followup(context,
     assert not desktop.calls
     second = await assistant.run("20 Prozent")
     assert second.state == State.DONE
-    assert model.questions == [None, "Welche Lautstärke?"]
+    assert model.questions == [None, Ask(kind="ask", question="Welche Lautstärke?")]
 
 
 async def test_practice_requires_explicit_f6_path(context, desktop):

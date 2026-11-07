@@ -75,6 +75,8 @@ def install_audio(config: Config, progress: Callable[[str], None], *, speaker=Fa
 @dataclass(frozen=True)
 class Detection:
     end: int  # Absolute byte position in the current microphone stream.
+    confirmation: bool = False
+    start: int | None = None
 
 
 class WakeSource(Protocol):
@@ -180,6 +182,12 @@ class VoskSource:
                 previous_end = word["end"]
             return None
         names = [word["word"] for word in words]
+        if names == ["computer", "bestätigen"] and min(word["conf"] for word in words) >= 0.60:
+            return Detection(
+                self._start + 2 * round(words[-1]["end"] * 16000),
+                confirmation=True,
+                start=self._start + 2 * round(words[0]["start"] * 16000),
+            )
         if names[0] == "computer":
             names = names[1:]
         if len(names) == 1 and names[0] in STOP_WORDS | {"shop"}:

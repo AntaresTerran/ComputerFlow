@@ -77,6 +77,7 @@ class Feedback:
         pattern = r"\b(?:" + "|".join(sorted(STOP_WORDS)) + r")\b"
         limit = 420 if self.config.mode == "conversational" else 220
         text = re.sub(pattern, "Halt", message[:limit], flags=re.I)
+        text = re.sub(r"\bbestätigen\b", "freigeben", text, flags=re.I)
         self.started_at = time.perf_counter()
         self._task = asyncio.create_task(self._speak(text))
 

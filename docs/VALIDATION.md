@@ -1,5 +1,41 @@
 # Lokale Abnahme
 
+## Praxistest-Rückmeldung vom 7. November 2026
+
+- 200 automatisierte Tests einschließlich Windows-Integration bestanden. Ruff meldete keine Abweichungen.
+- Drei Formulierungen aus dem Nutzerprotokoll führten mit lesenden Windows-Daten zur Auswahl des tatsächlich geöffneten Tabs „Home Assistant“. Die Tab-Auswahl wurde geplant. Zwei unverständliche Transkriptionen führten beim lokalen Modell zu einer neuen Bitte um Wiederholung.
+- Klick, Stream und Chat behalten ihren Aktionstyp und den genannten Dienst. Tests prüfen die Reihenfolge aus Tab-Auswahl und Zielsuche auf einer simulierten Oberfläche. Das Modell übernimmt den erkannten Nachrichtentext als Entwurf. Der echte Twitch-Chat und der Wechsel auf einen konkreten Live-Stream bleiben Teil der praktischen Erprobung.
+- Ein führendes „Abrechen.“ stoppt den Auftrag auch bei weiterem transkribierten Text. Ein Audiopuffer-Test prüft, dass nur der optionale Vorlauf gekürzt werden kann.
+
+## Tab- und Chat-Rückmeldung vom 6. November 2026
+
+- 188 automatisierte Tests einschließlich Windows-Integration bestanden. Ruff meldete keine Abweichungen.
+- Die Transkriptionen „Wechsel auf den Home Assistant Tab von Firefox“ und „Wechsle den Firefox-Tab auf Olamä“ ergeben getrennte Tab- und App-Namen. Weitere Wortstellungen werden mit einem Tab-Schema am lokalen Modell geprüft.
+- Auf dem angehängten Bild schlug die ursprüngliche Bildsuche das Lesezeichen „Home Assistant“ vor. Mit getrennt erkannter Tab-Leiste lagen die vorgeschlagenen Punkte auf „Home Assistant“ und „Claude Code - Ollama“. Die Grafik wurde für die Prüfung im RAM verarbeitet. Die Klicks wurden am Bild geprüft.
+- Die Chat-Prüfung verwendet ein simuliertes Nachrichtenfeld neben einem Suchfeld. In einem falschen Fenster oder mit Fokus im Suchfeld bittet ComputerFlow um den richtigen Fokus. Im bestätigten Chatfeld wird nur der diktierte Text als Entwurf gebunden. Der Live-Chat war kein Ausführungsziel.
+
+## Nachbesserungen an 0.0.3 am 6. November 2026
+
+- 178 automatisierte Tests einschließlich Windows-Integration bestanden. Ruff meldete keine Abweichungen.
+- Die deutsche Wake-Word-Prüfung verarbeitet einen direkt anschließenden Satz sowie einen Auftrag nach einer bewusst eingelegten Pause. Das alleinstehende Wake Word endet ohne Aktion.
+- Der moderne Windows-Editor meldete sein Textfeld als UI-Automation-Dokument (50030) mit schreibbarem Value-Pattern. Diese Standardrolle wird unabhängig vom Programm erkannt. Die automatisierten Tests prüfen wörtliche Eingabe, eindeutige Fokussierung und die Sperre bei einem geschützten oder unvollständigen Kontext. Der Schreibtest im echten Editor blieb offen, weil die Computer-Use-Freigabe zum Aktivieren des leeren Testfensters ablief.
+- Der tatsächlich offene Firefox-Tab „Home Assistant“ wurde lesend über seine Windows-Accessibility-Rolle aufgelöst. Das echte lokale Bildmodell fand dieselbe Beschriftung in einer Testgrafik mit drei Registerkarten. Ein automatisierter Test prüft den visuellen Pfad und die Klickfreigabe mit einem beliebigen Testprogramm. Ein weiterer findet eine Stream-Registerkarte in einem Programm, dessen Prozessname und Fenstertitel keinen Hinweis auf den Dienst geben.
+- Windows registriert „Editor“ in seinem lokalen Anwendungskatalog. Der Ausführungstest bindet einen beliebigen Katalognamen und eine geprüfte Registrierung an den freigabepflichtigen App-Start.
+- Ein absichtlich zurückgesetzter TCP-Loopback-Socket führte zu einer sichtbaren Meldung über den lokalen Modellserver und zu keinem Traceback beim Verbindungsabbau.
+
+## Version 0.0.3 am 5. November 2026
+
+- 169 automatisierte Tests bestanden, einschließlich Windows-Integration. Die neuen Fälle prüfen unter anderem negative Monitorkoordinaten, eine an den Bildkontext gebundene Freigabe, eindeutige App-Lautstärke und den Abbruch einer Schrittkette bei unerwartetem Vordergrund.
+- `scripts/validate_ui.py` benutzt ein eigenes WinForms-Testfenster. Es prüft den Aufnahmeschutz, Unicode-Eingabe einschließlich `Grüße, 世界 und 🐈.`, eine Accessibility-Checkbox und eine Schaltfläche. Die stumme Wiedergabesitzung des Testprogramms wurde auf 23 % gesetzt, zurückgelesen und danach wiederhergestellt.
+- Das echte lokale LFM3-Omni-Bildmodell fand eine beschriftete Fläche ohne aktivierbares Accessibility-Element. Der Klick erfolgte über Vorschau und gebundene Freigabe. Die Farbänderung wurde am Ziel gemessen. „Klick hier“ wurde auf drei physischen Monitoren geprüft, darunter ein Monitor links von x = 0. Windows meldete Skalierungen von 100 % und 150 %.
+- Ein zweistufiger Auftrag stellte ein minimiertes eigenes Fenster wieder her, erfasste dessen Vordergrund neu und schrieb erst dann in sein aktives Textfeld. Das Testfenster erteilte der Prüfsoftware gezielt die Windows-Fokusberechtigung. Im normalen Einsatz entscheidet Windows weiterhin über Fokuswechsel.
+- In einem separaten Chrome-Profil an einer lokalen Seite funktionierten Adressleistenfokus und geprüfte Texteingabe als Schrittkette ohne Erweiterung. Der Einrichtungsdialog eines frischen Firefox-Testprofils verhinderte einen Nachweis derselben Kette in Firefox. Der Assistent stoppte vor der Eingabe.
+- Vosk erkannte „Computer bestätigen“ in einem synthetischen Sprachtest nach 1,95 s ab Beginn der Datei. Sprachfreigabe ist eine ausdrücklich aktivierbare Option.
+
+Der optionale Hörversuch mit dem vorhandenen LFM3-Omni-2B-GGUF und `llama-tts` erzeugte 4,48 s deutsche Sprache bei 24 kHz. Der kalte Einzelaufruf dauerte rund 9,4 s, davon 3,05 s für Prompt und Generierung nach der Initialisierung. Das separate deutsche Vosk-Modell transkribierte alle Wörter der Hörprobe. Latenz im durchgehend laufenden Assistenten und Sprachqualität über unterschiedliche Sätze wurden damit noch nicht gemessen. [Modellkarte](https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF)
+
+Für die native UI-Prüfung aus dem Programmordner `.\.computerflow\venv\Scripts\python.exe -X utf8 .\scripts\validate_ui.py` ausführen. Das Skript kompiliert eine eigene WinForms-Testoberfläche und bedient deren zwei Fenster.
+
 ## Version 0.0.2 am 4. November 2026
 
 - Der lokale Windows-Starter meldete 0.0.2, Logitech StreamCam über WASAPI und den authentifizierten Modellserver auf `127.0.0.1:47831` mit Vulkan auf der Radeon RX 7900 XTX. Die StreamCam lieferte native 16-kHz-Monoblöcke. Mikrofonproben wurden nach dem Test verworfen.
@@ -32,7 +68,7 @@ Stand: 4. November 2026; Basisabnahme vom 3. November 2026. **Experimenteller Wi
 | Modellrevision | `d508b88f08a5b4286f2d2805a6a8d69a0ff44c72` |
 | Projektor | mmproj-LFM3-Omni-2B-Q8_0.gguf |
 | Template-SHA-256 | `4e295a038af980438912483abe76a81c36b2451c87ccc1e62051529a6a0fb7f5` |
-| Prompt | Basisabnahme v2; aktueller Client v3 mit den unten beschriebenen Nachbesserungen |
+| Prompt | Basisabnahme v2; aktueller Client v4 mit den oben beschriebenen Tab-Nachbesserungen |
 | GPU | Vulkan / AMD Radeon RX 7900 XTX; CPU-Betrieb ebenfalls real geprüft |
 | Python | 3.13.13, Installation aus `uv.lock` |
 | Modellserver | `127.0.0.1:47831`, API-Schlüssel, keine Agenttools/Web-UI/Protokollierung |
